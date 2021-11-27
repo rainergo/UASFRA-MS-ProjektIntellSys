@@ -31,15 +31,53 @@ class PDFMiner:
         self.pages = PDFPage.get_pages(self.path)
 
     def process_pages(self):
+        page_number = 0
         for page in self.pages:
+            page_number += 1
             print('Processing next page...')
             self.interpreter.process_page(page)
             layout = self.page_aggregator.get_result()
             for lobj in layout:
                 if isinstance(lobj, LTTextBox):
                     print('Type is:', type(lobj))
-                    x, y, text = lobj.bbox[0], lobj.bbox[3], lobj.get_text()
-                    print('At %r text is: %s' % ((x, y), text))
+                    one, two, three, four, text = lobj.bbox[0], lobj.bbox[1], lobj.bbox[2], lobj.bbox[
+                        3], lobj.get_text()
+                    print(f'At {one}, {two}, {three}, {four} text is: {text}')
+
+    def find_word(self, word: str, line_tolerance: float = 0.75):
+        findings = list()
+        page_number = 0
+        for page in self.pages:
+            coordinates = set()
+            coordinates_plus_tolerance = set()
+            page_number += 1
+            # print('Processing next page...')
+            self.interpreter.process_page(page)
+            layout = self.page_aggregator.get_result()
+            y0 = y1 = yy0 = yy1 = search_text = text = 0
+            for first_layout_obj in layout:
+                if isinstance(first_layout_obj, LTTextBox):
+                    y0, y1, search_text = first_layout_obj.bbox[1], first_layout_obj.bbox[
+                        3], first_layout_obj.get_text()
+                    if word in search_text:
+                        # print(f'At y-values {y0},{y1} text is: {search_text}')
+                        coordinates.add((y0, y1))
+                        y_tolerance = (y1 - y0) * line_tolerance
+                        y0_lower = y0 - y_tolerance
+                        y1_upper = y1 + y_tolerance
+                        coordinates_plus_tolerance.add((y0_lower, y1_upper))
+            if len(coordinates) > 0:
+                finding = {'page_number': page_number, 'text': list()}
+                for second_layout_obj in layout:
+                    yy0, yy1 = second_layout_obj.bbox[1], second_layout_obj.bbox[3]
+                    yy0_yy1_is_within_bounds = len(([(y_tol[0], y_tol[1]) for y_tol in coordinates_plus_tolerance if
+                                                     (yy0 >= y_tol[0] and yy1 <= y_tol[1])])) > 0
+                    if isinstance(second_layout_obj, LTTextBox) and ((yy0, yy1) in coordinates or (yy0_yy1_is_within_bounds)):
+                        text = second_layout_obj.get_text().replace('\n', ' ').replace('  ', ' ')
+                        # print(f'At yy-values {yy0},{yy1} text_2 is: {text}')
+                        finding['text'].append(text)
+                findings.append(finding)
+        return findings
 
     def extract_text(self):
         output_string = StringIO()
