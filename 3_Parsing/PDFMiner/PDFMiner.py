@@ -10,6 +10,7 @@ from pdfminer.pdftypes import resolve1
 from pdfminer.pdfparser import PDFParser
 from pdfminer.psparser import PSLiteral, PSKeyword
 from pdfminer.utils import decode_text
+from typing import List
 
 """ Documentation is here:
     https://pdfminersix.readthedocs.io/en/latest/index.html
@@ -55,8 +56,10 @@ class PDFMiner:
         findings = list()
         page_number = 0
         for page in self.pages:
-            coordinates = set()
-            coordinates_plus_tolerance = set()
+            y_coordinates = set()
+            y_coordinates_plus_tolerance = set()
+            x_coordinates = set()
+            x_coordinates_plus_tolerance = set()
             page_number += 1
             # print('Processing next page...')
             self.interpreter.process_page(page)
@@ -64,29 +67,116 @@ class PDFMiner:
             y0 = y1 = yy0 = yy1 = search_text = text = 0
             for first_layout_obj in layout:
                 if isinstance(first_layout_obj, LTTextBox):
-                    y0, y1, search_text = first_layout_obj.bbox[1], first_layout_obj.bbox[
-                        3], first_layout_obj.get_text()
+                    x0, y0, x1, y1, search_text = first_layout_obj.bbox[0], first_layout_obj.bbox[1], \
+                                                  first_layout_obj.bbox[2], first_layout_obj.bbox[
+                                                      3], first_layout_obj.get_text()
                     if word in search_text:
                         # print(f'At y-values {y0},{y1} text is: {search_text}')
-                        coordinates.add((y0, y1))
+                        y_coordinates.add((y0, y1))
                         y_tolerance = (y1 - y0) * line_tolerance
                         y0_lower = y0 - y_tolerance
                         y1_upper = y1 + y_tolerance
-                        coordinates_plus_tolerance.add((y0_lower, y1_upper))
+                        y_coordinates_plus_tolerance.add((y0_lower, y1_upper))
+                        x_coordinates.add((x0, x1))
+                        x_tolerance = (x1 - x0) * line_tolerance
+                        x0_lower = x0 - x_tolerance
+                        x1_upper = x1 + x_tolerance
+                        x_coordinates_plus_tolerance.add((x0_lower, x1_upper))
             # Now we check if any y-coordinate (height position) of any other LTTextBox has same or nearby value
             # If yes, we merge the contents (text) of these LTTextBox-Objects into a string list
-            # ToDo: Do the same for x-coordinate (width position)
-            if len(coordinates) > 0:
+            if len(y_coordinates) > 0 or len(x_coordinates) > 0:
                 finding = {'page_number': page_number, 'text': list()}
+            if len(y_coordinates) > 0:
                 for second_layout_obj in layout:
                     yy0, yy1 = second_layout_obj.bbox[1], second_layout_obj.bbox[3]
-                    yy0_yy1_is_within_bounds = len(([(y_tol[0], y_tol[1]) for y_tol in coordinates_plus_tolerance if
+                    yy0_yy1_is_within_bounds = len(([(y_tol[0], y_tol[1]) for y_tol in y_coordinates_plus_tolerance if
                                                      (yy0 >= y_tol[0] and yy1 <= y_tol[1])])) > 0
                     if isinstance(second_layout_obj, LTTextBox) and (
-                            (yy0, yy1) in coordinates or (yy0_yy1_is_within_bounds)):
+                            (yy0, yy1) in y_coordinates or yy0_yy1_is_within_bounds):
                         text = second_layout_obj.get_text().replace('\n', ' ').replace('  ', ' ')
                         # print(f'At yy-values {yy0},{yy1} text_2 is: {text}')
                         finding['text'].append(text)
+                findings.append(finding)
+            # Now we check if any x-coordinate (width position) of any other LTTextBox has same or nearby value
+            # If yes, we merge the contents (text) of these LTTextBox-Objects into a string list
+            if len(x_coordinates) > 0:
+                for third_layout_obj in layout:
+                    xx0, xx1 = third_layout_obj.bbox[0], third_layout_obj.bbox[2]
+                    xx0_xx1_is_within_bounds = len(([(x_tol[0], x_tol[1]) for x_tol in x_coordinates_plus_tolerance if
+                                                     (xx0 >= x_tol[0] and xx1 <= x_tol[1])])) > 0
+                    if isinstance(third_layout_obj, LTTextBox) and (
+                            (xx0, xx1) in y_coordinates or xx0_xx1_is_within_bounds):
+                        text = third_layout_obj.get_text().replace('\n', ' ').replace('  ', ' ')
+                        # print(f'At xx-values {xx0},{xx1} text_3 is: {text}')
+                        finding['text'].append(text)
+                findings.append(finding)
+
+        return findings
+
+    def find_word_2(self, word: str, search_word_list: List[str], line_tolerance: float = 0.00):
+        findings = list()
+        page_number = 0
+        for page in self.pages:
+            y_coordinates = set()
+            y_coordinates_plus_tolerance = set()
+            x_coordinates = set()
+            x_coordinates_plus_tolerance = set()
+            page_number += 1
+            # print('Processing next page...')
+            self.interpreter.process_page(page)
+            layout = self.page_aggregator.get_result()
+            y0 = y1 = yy0 = yy1 = search_text = text = 0
+            # Iterate over all objects
+            for first_layout_obj in layout:
+                if isinstance(first_layout_obj, LTTextBox):
+                    x0, y0, x1, y1, search_text = first_layout_obj.bbox[0], first_layout_obj.bbox[1], \
+                                                  first_layout_obj.bbox[2], first_layout_obj.bbox[
+                                                      3], first_layout_obj.get_text()
+                    # If object is of type LTTextBox and word matches with content of this LTTextBox-object,
+                    # then save x/y-coordinates individually
+                    if word in search_text:
+                        # print(f'At y-values {y0},{y1} text is: {search_text}')
+                        y_coordinates.add((y0, y1))
+                        y_tolerance = (y1 - y0) * line_tolerance
+                        y0_lower = y0 - y_tolerance
+                        y1_upper = y1 + y_tolerance
+                        y_coordinates_plus_tolerance.add((y0_lower, y1_upper))
+                        x_coordinates.add((x0, x1))
+                        x_tolerance = (x1 - x0) * line_tolerance
+                        x0_lower = x0 - x_tolerance
+                        x1_upper = x1 + x_tolerance
+                        x_coordinates_plus_tolerance.add((x0_lower, x1_upper))
+            # Now we check if any y-coordinate (height position) or x-coordinate (width position)
+            # of any other LTTextBox has same or nearby values. If yes, we merge the contents (text) of
+            # these LTTextBox-Objects into a string list
+            if len(y_coordinates) > 0 or len(x_coordinates) > 0:
+                finding = {'page_number': page_number, 'text': list()}
+                for second_layout_obj in layout:
+                    if isinstance(second_layout_obj, LTTextBox):
+                        # Get all object coordinates
+                        xx0, yy0, xx1, yy1 = second_layout_obj.bbox[0], second_layout_obj.bbox[1], \
+                                             second_layout_obj.bbox[
+                                                 2], second_layout_obj.bbox[3]
+                        # Check if found object coordinates (+/- tolerance) match objects coordinates of objects
+                        # that contain the searched word
+                        yy0_yy1_is_within_bounds = len(
+                            ([(y_tol[0], y_tol[1]) for y_tol in y_coordinates_plus_tolerance if
+                              (yy0 >= y_tol[0] and yy1 <= y_tol[1])])) > 0
+                        xx0_xx1_is_within_bounds = len(
+                            ([(x_tol[0], x_tol[1]) for x_tol in x_coordinates_plus_tolerance if
+                              (xx0 >= x_tol[0] and xx1 <= x_tol[1])])) > 0
+                        # If so, then append this to the finding list
+                        if ((yy0, yy1) in y_coordinates or yy0_yy1_is_within_bounds) or (
+                                (xx0, xx1) in y_coordinates or xx0_xx1_is_within_bounds):
+                            text = second_layout_obj.get_text().replace('\n', ' ').replace('  ', ' ')
+                            finding['text'].append(text)
+                            # if word_2 in text:
+                            #     finding['text'].append(text)
+                # First clean list according to word_list:
+                finding['text'] = set([sentence for sentence in finding['text'] for word in search_word_list if
+                                   word in sentence.split() or sentence.replace('.', '', 1).replace(',', '',
+                                                                                                    1).strip().isnumeric()])
+                # Finally, append all cleaned finding lists into another list ("findings"):
                 findings.append(finding)
         return findings
 
