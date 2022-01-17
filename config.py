@@ -7,5 +7,6 @@ allianz_page_106 = '../../1_Reports/Sample_Reports/Allianz_Group_Sustainability_
 cg_pdf = '../../1_Reports/Sample_Reports/CG Annual Report 2018.pdf'
 acroform = '../../1_Reports/Sample_Reports/AcroForm_TEST.pdf'
 ing_pdf = '../../1_Reports/Sample_Reports/INGA - ING Groep NV (ING-NL) - Annual Report for period end 31-Dec-2018 (English) - PDF - 07-Mar-19 - Annual.pdf'
+ing_converted_pdf = '../../1_Reports/Sample_Reports/ING2018Converted.pdf'
 pets_pdf = '../../1_Reports/Sample_Reports/PETS2021.pdf'
 pets_converted_pdf = '../../1_Reports/Sample_Reports/PETS2021ConvertedWithPDF24.pdf'
