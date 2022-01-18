@@ -33,6 +33,8 @@ class XYWordMatch:
         self.y_coordinates_plus_neighbour_tolerance = list()
         self.x_coordinates = (x0, x1)
         self.y_coordinates = (y0, y1)
+        self.xx_coordinates_table_keyword_values_plus_tolerance = list()
+        self.yy_coordinates_table_keyword_values_plus_tolerance = list()
         self.short_text_and_number = list()
         self.text_for_word2vec = list()
         self.table_values = list()
@@ -46,7 +48,7 @@ class XYWordMatch:
         x0, x1 = value
         self._x_coordinates = (x0, x1)
         self.x_coordinates_plus_neighbour_tolerance.append(self._calc_x_neighbour_tolerance(x0=x0, x1=x1))
-        self.x_coordinates_plus_table_tolerance.append(self._calc_x_table_tolerance(x0=x0, x1=x1))
+        self.x_coordinates_plus_table_tolerance.append(self._calc_x_table_neighbour_tolerance(x0=x0, x1=x1))
 
     @property
     def y_coordinates(self) -> tuple:
@@ -58,7 +60,7 @@ class XYWordMatch:
         self._y_coordinates = (y0, y1)
         self.y_coordinates_plus_neighbour_tolerance.append(self._calc_y_neighbour_tolerance(y0=y0, y1=y1))
 
-    def xx0_xx1_is_within_table_bounds(self, xx0: float, xx1: float) -> bool:
+    def xx0_xx1_is_within_table_neighbourhood(self, xx0: float, xx1: float) -> bool:
         return len(([(x_tol[0], x_tol[1]) for x_tol in self.x_coordinates_plus_table_tolerance if
                      (xx0 >= x_tol[0] and xx1 <= x_tol[1])])) > 0
 
@@ -91,11 +93,31 @@ class XYWordMatch:
         x1_upper = x1 + x_tolerance
         return x0_lower, x1_upper
 
-    def _calc_x_table_tolerance(self, x0: float, x1: float) -> tuple:
+    def _calc_x_table_neighbour_tolerance(self, x0: float, x1: float) -> tuple:
         x_tolerance = (x1 - x0) * self.table_tolerance
         x0_lower = x0
         x1_upper = x1 + x_tolerance
         return x0_lower, x1_upper
+
+    def set_table_keyword_value_coordinates_plus_tolerance(self, x0: float, x1: float, y0: float, y1: float,
+                                                           position_tolerance: float = 2.50):
+        x_tolerance = (x1 - x0) * position_tolerance
+        x0_lower = x0 - x_tolerance
+        x1_upper = x1 + x_tolerance
+        y_tolerance = (y1 - y0) * position_tolerance
+        y0_lower = y0 - y_tolerance
+        y1_upper = y1 + y_tolerance
+        self.xx_coordinates_table_keyword_values_plus_tolerance.append((x0_lower, x1_upper))
+        self.yy_coordinates_table_keyword_values_plus_tolerance.append((y0_lower, y1_upper))
+
+    def are_keyword_coordinates_within_tolerance(self, xx0: float, xx1: float, yy0: float, yy1: float) -> bool:
+        x_within_bounds = len(
+            ([(x_tol[0], x_tol[1]) for x_tol in self.xx_coordinates_table_keyword_values_plus_tolerance if
+              (xx0 >= x_tol[0] and xx1 <= x_tol[1])])) > 0
+        y_within_bounds = len(
+            ([(y_tol[0], y_tol[1]) for y_tol in self.yy_coordinates_table_keyword_values_plus_tolerance if
+              (yy0 >= y_tol[0] and yy1 <= y_tol[1])])) > 0
+        return x_within_bounds and y_within_bounds
 
 
 class PDFMiner:
@@ -271,7 +293,7 @@ class PDFMiner:
         return findings
 
     def find_word_3(self, keywords: list, search_word_list: List[str], neighbour_tolerance: float,
-                    table_tolerance: float, short_text_max_len: int = 20):
+                    table_tolerance: float, table_keywords: list, short_text_max_len: int = 50, decimals: int = 0):
         findings = list()
         page_number = 0
         # I. Iterate over all pages
@@ -281,19 +303,24 @@ class PDFMiner:
             page_layout = self.page_aggregator.get_result()
             finding = {'page_number': None, 'short_text_and_number': set(), 'text_for_word2vec': set(),
                        'table_values': set()}
+            xx_coordinates_table_keyword = set()
             # II. Iterate over all objects on a page
             for first_layout_obj in page_layout:
                 if isinstance(first_layout_obj, LTTextBox):
-                    text_with_keyword = first_layout_obj.get_text()
+                    x0, y0, x1, y1, text_with_keyword = round(first_layout_obj.bbox[0], decimals), round(
+                        first_layout_obj.bbox[1], decimals), \
+                                                        round(first_layout_obj.bbox[2], decimals), round(
+                        first_layout_obj.bbox[
+                            3], decimals), first_layout_obj.get_text()
                     # If object is of type LTTextBox and word matches with content of this LTTextBox-object,
                     # then save x/y-coordinates individually
                     if any(word in text_with_keyword for word in keywords):
-                        x0, y0, x1, y1 = first_layout_obj.bbox[0], first_layout_obj.bbox[1], \
-                                         first_layout_obj.bbox[2], first_layout_obj.bbox[3]
+
                         ###################################################################################
                         word_match = XYWordMatch(x0=x0, x1=x1, y0=y0, y1=y1, neighbour_tolerance=neighbour_tolerance,
                                                  table_tolerance=table_tolerance)
                         ###################################################################################
+
                         text_with_keyword_clean = text_with_keyword.replace('\n\n', '\n').replace('\n', ' ').strip()
 
                         # Case 1: If the found string already contains the keyword and a number
@@ -304,43 +331,55 @@ class PDFMiner:
                         for second_layout_obj in page_layout:
                             # Now we check neighbour objects, i.e those objects whose y-coordinates
                             # (height position) or x-coordinates (width position) are nearby:
-                            xx0, yy0, xx1, yy1 = second_layout_obj.bbox[0], second_layout_obj.bbox[1], \
-                                                 second_layout_obj.bbox[2], second_layout_obj.bbox[3]
-
+                            xx0, yy0, xx1, yy1 = round(second_layout_obj.bbox[0], decimals), round(
+                                second_layout_obj.bbox[1], decimals), \
+                                                 round(second_layout_obj.bbox[2], decimals), round(
+                                second_layout_obj.bbox[3], decimals)
                             # IV. First, we get texts that might contain the keyword and keyword values:
                             if isinstance(second_layout_obj, LTTextBox):
                                 if word_match.xx0_xx1_is_within_neighbour_bounds(xx0=xx0, xx1=xx1) or \
                                         word_match.yy0_yy1_is_within_neighbour_bounds(yy0=yy0, yy1=yy1):
                                     text_nearby = second_layout_obj.get_text()
                                     text_nearby_clean = text_nearby.replace('\n\n', '\n').replace('\n', ' ').strip()
+                                    matching_sentences_in_text_nearby = \
+                                        set([sentence for sentence in text_nearby_clean.split('.') for word in
+                                             search_word_list if word in sentence])
                                     # We want to make sure that the text also contains a number, potentially
                                     # the keyword value:
-                                    if any(term.isdigit() for term in text_nearby_clean):
-                                        # Case 2: If both, the text_with_keyword and text_nearby
-                                        # are SHORTER than short_text_max_len chars:
-                                        if len(text_with_keyword_clean) < short_text_max_len and \
-                                                len(text_nearby_clean) < short_text_max_len:
-                                            word_match.add_short_text_and_number(text_nearby_clean)
-                                            # word_match.add_short_text_and_number(
-                                            #     text_with_keyword_clean + ' ' + text_nearby_clean)
-                                        # Case 3: If the text is LONGER than short_text_max_len chars, we later might
-                                        # try the word2vec approach:
-                                        elif len(text_nearby_clean) >= short_text_max_len:
-                                            matching_sentences_in_text_nearby = \
-                                                set([sentence for sentence in text_nearby_clean.split('.') for word in
-                                                     search_word_list if word in sentence])
-                                            for matching_sentence in matching_sentences_in_text_nearby:
-                                                word_match.add_text_for_word2vec(matching_sentence)
-                                # V. Second, we get data that might be in a table:
-                            if isinstance(second_layout_obj, LTTextBox):
-                                if word_match.xx0_xx1_is_within_table_bounds(xx0=xx0, xx1=xx1):
-                                    text_table = second_layout_obj.get_text()
-                                    text_table_clean = text_table.replace('\n\n', '\n').replace('\n', ' ').strip()
-                                    if any(term.isdigit() for term in text_table_clean):
-                                        # Case 2: If both, the text_with_keyword and text_nearby
-                                        # are SHORTER than short_text_max_len chars:
-                                        if len(text_table_clean) < short_text_max_len:
-                                            word_match.add_table_values(text_table_clean)
+                                    if any(term.isdigit() for term in text_nearby_clean) and any(
+                                            term.isascii() for term in text_nearby_clean) and len(
+                                            text_nearby_clean) < short_text_max_len:
+                                        for matching_sentence in matching_sentences_in_text_nearby:
+                                            word_match.add_short_text_and_number(matching_sentence)
+                                    # Case 3: If the text is LONGER than short_text_max_len chars, we later might
+                                    # try the word2vec approach:
+                                    else:
+                                        for matching_sentence in matching_sentences_in_text_nearby:
+                                            word_match.add_text_for_word2vec(matching_sentence)
+
+                            # V. Second, we get data that might be in a table:
+                            if isinstance(second_layout_obj, LTTextBox) or isinstance(second_layout_obj, LTTextLine):
+                                # This is for table checks later
+                                text_table = second_layout_obj.get_text()
+                                text_table_clean = text_table.replace('\n\n', '\n').replace('\n', ' ').strip()
+                                if any(word in text_table for word in table_keywords) and len(
+                                        text_table_clean) < short_text_max_len:
+                                    word_match.set_table_keyword_value_coordinates_plus_tolerance(x0=xx0, x1=xx1, y0=y0,
+                                                                                                  y1=y1)
+                                # If coordinates of keyword and table_keyword cross, this might be the value
+                                # in a table:
+                                # if (y0, y1) is (yy0, yy1) and (xx0, xx1) in xx_coordinates_table_keyword:
+                                #     word_match.add_table_values(text_table_clean)
+                                if word_match.are_keyword_coordinates_within_tolerance(xx0=xx0, xx1=xx1, yy0=yy0,
+                                                                                       yy1=yy1):
+                                    word_match.add_table_values(text_table_clean)
+                                    # Get Textbox with the coordinates y0,y1,xx0,xx1
+                                # if word_match.xx0_xx1_is_within_table_bounds(xx0=xx0, xx1=xx1):
+                                #     if any(term.isdigit() for term in text_table_clean):
+                                #         # Case 2: If both, the text_with_keyword and text_nearby
+                                #         # are SHORTER than short_text_max_len chars:
+                                #         if len(text_table_clean) < short_text_max_len:
+                                #             word_match.add_table_values(text_table_clean)
 
                         finding['page_number'] = page_number
                         for phrase in word_match.short_text_and_number:
