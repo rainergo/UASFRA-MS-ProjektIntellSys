@@ -25,10 +25,11 @@ class XYWordMatch:
     # table_values = set()
 
     def __init__(self, x0: float, x1: float, y0: float, y1: float, neighbour_tolerance: float = 0.75,
-                 table_tolerance: float = 0.75):
+                 table_x_tolerance: float = 0.75, table_y_tolerance: float = 0.75):
         self.neighbour_tolerance = neighbour_tolerance
-        self.table_tolerance = table_tolerance
-        self.x_coordinates_plus_table_tolerance = list()
+        """ See comment in set_table_keyword_value_coordinates_plus_tolerance-method: """
+        self.table_x_tolerance = table_x_tolerance
+        self.table_y_tolerance = table_y_tolerance
         self.x_coordinates_plus_neighbour_tolerance = list()
         self.y_coordinates_plus_neighbour_tolerance = list()
         self.x_coordinates = (x0, x1)
@@ -48,7 +49,6 @@ class XYWordMatch:
         x0, x1 = value
         self._x_coordinates = (x0, x1)
         self.x_coordinates_plus_neighbour_tolerance.append(self._calc_x_neighbour_tolerance(x0=x0, x1=x1))
-        self.x_coordinates_plus_table_tolerance.append(self._calc_x_table_neighbour_tolerance(x0=x0, x1=x1))
 
     @property
     def y_coordinates(self) -> tuple:
@@ -59,10 +59,6 @@ class XYWordMatch:
         y0, y1 = value
         self._y_coordinates = (y0, y1)
         self.y_coordinates_plus_neighbour_tolerance.append(self._calc_y_neighbour_tolerance(y0=y0, y1=y1))
-
-    def xx0_xx1_is_within_table_neighbourhood(self, xx0: float, xx1: float) -> bool:
-        return len(([(x_tol[0], x_tol[1]) for x_tol in self.x_coordinates_plus_table_tolerance if
-                     (xx0 >= x_tol[0] and xx1 <= x_tol[1])])) > 0
 
     def xx0_xx1_is_within_neighbour_bounds(self, xx0: float, xx1: float) -> bool:
         return len(([(x_tol[0], x_tol[1]) for x_tol in self.x_coordinates_plus_neighbour_tolerance if
@@ -93,24 +89,23 @@ class XYWordMatch:
         x1_upper = x1 + x_tolerance
         return x0_lower, x1_upper
 
-    def _calc_x_table_neighbour_tolerance(self, x0: float, x1: float) -> tuple:
-        x_tolerance = (x1 - x0) * self.table_tolerance
-        x0_lower = x0
-        x1_upper = x1 + x_tolerance
-        return x0_lower, x1_upper
-
-    def set_table_keyword_value_coordinates_plus_tolerance(self, x0: float, x1: float, y0: float, y1: float,
-                                                           position_tolerance: float = 2.50):
-        x_tolerance = (x1 - x0) * position_tolerance
+    def set_table_keyword_value_x_coordinates_plus_tolerance(self, x0: float, x1: float):
+        """ The y-position should only be minimally different from keyword position, but the x-position could
+        deviate more from the table_keyword-position due to different size of table_keyword and the keyword value """
+        x_tolerance = (x1 - x0) * self.table_x_tolerance
         x0_lower = x0 - x_tolerance
         x1_upper = x1 + x_tolerance
-        y_tolerance = (y1 - y0) * position_tolerance
+        self.xx_coordinates_table_keyword_values_plus_tolerance.append((x0_lower, x1_upper))
+
+    def set_table_keyword_value_y_coordinates_plus_tolerance(self, y0: float, y1: float):
+        """ The y-position should only be minimally different from keyword position, but the x-position could
+        deviate more from the table_keyword-position due to different size of table_keyword and the keyword value """
+        y_tolerance = (y1 - y0) * self.table_y_tolerance
         y0_lower = y0 - y_tolerance
         y1_upper = y1 + y_tolerance
-        self.xx_coordinates_table_keyword_values_plus_tolerance.append((x0_lower, x1_upper))
         self.yy_coordinates_table_keyword_values_plus_tolerance.append((y0_lower, y1_upper))
 
-    def are_keyword_coordinates_within_tolerance(self, xx0: float, xx1: float, yy0: float, yy1: float) -> bool:
+    def are_table_keyword_coordinates_within_tolerance(self, xx0: float, xx1: float, yy0: float, yy1: float) -> bool:
         x_within_bounds = len(
             ([(x_tol[0], x_tol[1]) for x_tol in self.xx_coordinates_table_keyword_values_plus_tolerance if
               (xx0 >= x_tol[0] and xx1 <= x_tol[1])])) > 0
@@ -155,232 +150,98 @@ class PDFMiner:
                         3], lobj.get_text()
                     print(f'At {one}, {two}, {three}, {four} text is: {text}')
 
-    def find_word(self, word: str, neighbour_tolerance: float = 0.00):
+    def find_word(self, keywords: List[str], search_word_list: List[str], neighbour_tolerance: float,
+                  table_keywords: List[str], table_x_tolerance: float = 3.50, table_y_tolerance: float = 0.50,
+                  short_text_max_len: int = 50, decimals: int = 1):
         findings = list()
         page_number = 0
-        for page in self.pages:
-            y_coordinates = set()
-            y_coordinates_plus_neighbour_tolerance = set()
-            x_coordinates = set()
-            x_coordinates_plus_neighbour_tolerance = set()
-            page_number += 1
-            # print('Processing next page...')
-            self.interpreter.process_page(page)
-            layout = self.page_aggregator.get_result()
-            # y0 = y1 = yy0 = yy1 = search_text = text = 0
-            for first_layout_obj in layout:
-                if isinstance(first_layout_obj, LTTextBox):
-                    x0, y0, x1, y1, search_text = first_layout_obj.bbox[0], first_layout_obj.bbox[1], \
-                                                  first_layout_obj.bbox[2], first_layout_obj.bbox[
-                                                      3], first_layout_obj.get_text()
-                    if word in search_text:
-                        # print(f'At y-values {y0},{y1} text is: {search_text}')
-                        y_coordinates.add((y0, y1))
-                        y_tolerance = (y1 - y0) * neighbour_tolerance
-                        y0_lower = y0 - y_tolerance
-                        y1_upper = y1 + y_tolerance
-                        y_coordinates_plus_neighbour_tolerance.add((y0_lower, y1_upper))
-                        x_coordinates.add((x0, x1))
-                        x_tolerance = (x1 - x0) * neighbour_tolerance
-                        x0_lower = x0 - x_tolerance
-                        x1_upper = x1 + x_tolerance
-                        x_coordinates_plus_neighbour_tolerance.add((x0_lower, x1_upper))
-            # Now we check if any y-coordinate (height position) of any other LTTextBox has same or nearby value
-            # If yes, we merge the contents (text) of these LTTextBox-Objects into a string list
-            if len(y_coordinates) > 0 or len(x_coordinates) > 0:
-                finding = {'page_number': page_number, 'text': list()}
-            if len(y_coordinates) > 0:
-                for second_layout_obj in layout:
-                    yy0, yy1 = second_layout_obj.bbox[1], second_layout_obj.bbox[3]
-                    yy0_yy1_is_within_neighbour_bounds = len(
-                        ([(y_tol[0], y_tol[1]) for y_tol in y_coordinates_plus_neighbour_tolerance if
-                          (yy0 >= y_tol[0] and yy1 <= y_tol[1])])) > 0
-                    if isinstance(second_layout_obj, LTTextBox) and (
-                            (yy0, yy1) in y_coordinates or yy0_yy1_is_within_neighbour_bounds):
-                        text = second_layout_obj.get_text().replace('\n', ' ').replace('  ', ' ')
-                        # print(f'At yy-values {yy0},{yy1} text_2 is: {text}')
-                        finding['text'].append(text)
-                findings.append(finding)
-            # Now we check if any x-coordinate (width position) of any other LTTextBox has same or nearby value
-            # If yes, we merge the contents (text) of these LTTextBox-Objects into a string list
-            if len(x_coordinates) > 0:
-                for third_layout_obj in layout:
-                    xx0, xx1 = third_layout_obj.bbox[0], third_layout_obj.bbox[2]
-                    xx0_xx1_is_within_neighbour_bounds = len(
-                        ([(x_tol[0], x_tol[1]) for x_tol in x_coordinates_plus_neighbour_tolerance if
-                          (xx0 >= x_tol[0] and xx1 <= x_tol[1])])) > 0
-                    if isinstance(third_layout_obj, LTTextBox) and (
-                            (xx0, xx1) in y_coordinates or xx0_xx1_is_within_neighbour_bounds):
-                        text = third_layout_obj.get_text().replace('\n', ' ').replace('  ', ' ')
-                        # print(f'At xx-values {xx0},{xx1} text_3 is: {text}')
-                        finding['text'].append(text)
-                findings.append(finding)
-
-        return findings
-
-    def find_word_2(self, word: str, search_word_list: List[str], neighbour_tolerance: float = 0.00):
-        findings = list()
-        page_number = 0
-        for page in self.pages:
-            y_coordinates = set()
-            y_coordinates_plus_neighbour_tolerance = set()
-            x_coordinates = set()
-            x_coordinates_plus_neighbour_tolerance = set()
-            page_number += 1
-            # print('Processing next page...')
-            self.interpreter.process_page(page)
-            layout = self.page_aggregator.get_result()
-            y0 = y1 = yy0 = yy1 = search_text = text = 0
-            # Iterate over all objects
-            for first_layout_obj in layout:
-                if isinstance(first_layout_obj, LTTextBox):
-                    x0, y0, x1, y1, search_text = first_layout_obj.bbox[0], first_layout_obj.bbox[1], \
-                                                  first_layout_obj.bbox[2], first_layout_obj.bbox[
-                                                      3], first_layout_obj.get_text()
-                    # If object is of type LTTextBox and word matches with content of this LTTextBox-object,
-                    # then save x/y-coordinates individually
-                    if word in search_text:
-                        # print(f'At y-values {y0},{y1} text is: {search_text}')
-                        y_coordinates.add((y0, y1))
-                        y_tolerance = (y1 - y0) * neighbour_tolerance
-                        y0_lower = y0 - y_tolerance
-                        y1_upper = y1 + y_tolerance
-                        y_coordinates_plus_neighbour_tolerance.add((y0_lower, y1_upper))
-                        x_coordinates.add((x0, x1))
-                        x_tolerance = (x1 - x0) * neighbour_tolerance
-                        x0_lower = x0 - x_tolerance
-                        x1_upper = x1 + x_tolerance
-                        x_coordinates_plus_neighbour_tolerance.add((x0_lower, x1_upper))
-            # Now we check if any y-coordinate (height position) or x-coordinate (width position)
-            # of any other LTTextBox has same or nearby values. If yes, we merge the contents (text) of
-            # these LTTextBox-Objects into a string list
-            if len(y_coordinates) > 0 or len(x_coordinates) > 0:
-                finding = {'page_number': page_number, 'text': list()}
-                finding_raw = list()
-                # Now we go through the exact same page but with the objective to find nearby LTTextBoxes
-                for second_layout_obj in layout:
-                    if isinstance(second_layout_obj, LTTextBox):
-                        # Get all object coordinates
-                        xx0, yy0, xx1, yy1 = second_layout_obj.bbox[0], second_layout_obj.bbox[1], \
-                                             second_layout_obj.bbox[
-                                                 2], second_layout_obj.bbox[3]
-                        # Check if found object coordinates (+/- tolerance) match objects coordinates of objects
-                        # that contain the searched word
-                        yy0_yy1_is_within_neighbour_bounds = len(
-                            ([(y_tol[0], y_tol[1]) for y_tol in y_coordinates_plus_neighbour_tolerance if
-                              (yy0 >= y_tol[0] and yy1 <= y_tol[1])])) > 0
-                        xx0_xx1_is_within_neighbour_bounds = len(
-                            ([(x_tol[0], x_tol[1]) for x_tol in x_coordinates_plus_neighbour_tolerance if
-                              (xx0 >= x_tol[0] and xx1 <= x_tol[1])])) > 0
-                        # If so, then append this to the finding list
-                        if ((yy0, yy1) in y_coordinates or yy0_yy1_is_within_neighbour_bounds) or (
-                                (xx0, xx1) in x_coordinates or xx0_xx1_is_within_neighbour_bounds):
-                            text = second_layout_obj.get_text().replace('\n', ' ').strip()
-                            if page_number == 107:
-                                print('text:', text)
-                            finding_raw.append(text)
-                            # if word_2 in text:
-                            #     finding['text'].append(text)
-                # First clean list according to word_list:
-                finding['text'] = set([sentence for sentence in finding_raw for word in search_word_list if
-                                       word in sentence.split() or sentence.replace('.', '', 1).replace(',', '',
-                                                                                                        1).strip().isnumeric()])
-                # finding['text'] = set([sentence for sentence in finding_raw for word in search_word_list if
-                #                    word in sentence.split() or sentence.replace('.', '', 1).replace(',', '',
-                #                                                                                     1).strip().isnumeric()])
-                # Finally, append all cleaned finding lists into another list ("findings"):
-                findings.append(finding)
-        return findings
-
-    def find_word_3(self, keywords: list, search_word_list: List[str], neighbour_tolerance: float,
-                    table_tolerance: float, table_keywords: list, short_text_max_len: int = 50, decimals: int = 0):
-        findings = list()
-        page_number = 0
-        # I. Iterate over all pages
+        """ I. Iterate over all pages: """
         for page in self.pages:
             page_number += 1
             self.interpreter.process_page(page)
             page_layout = self.page_aggregator.get_result()
             finding = {'page_number': None, 'short_text_and_number': set(), 'text_for_word2vec': set(),
                        'table_values': set()}
-            xx_coordinates_table_keyword = set()
-            # II. Iterate over all objects on a page
+            """ II. Iterate over all LTTextBox-objects (called: first_layout_obj) on a page: """
             for first_layout_obj in page_layout:
-                if isinstance(first_layout_obj, LTTextBox):
-                    x0, y0, x1, y1, text_with_keyword = round(first_layout_obj.bbox[0], decimals), round(
-                        first_layout_obj.bbox[1], decimals), \
-                                                        round(first_layout_obj.bbox[2], decimals), round(
-                        first_layout_obj.bbox[
-                            3], decimals), first_layout_obj.get_text()
-                    # If object is of type LTTextBox and word matches with content of this LTTextBox-object,
-                    # then save x/y-coordinates individually
+                if isinstance(first_layout_obj, LTTextBox) or isinstance(first_layout_obj, LTTextLine):
+                    x0, y0, x1, y1, text_with_keyword = self.get_coordinates(layout_obj=first_layout_obj,
+                                                                             decimals=decimals)
+                    """ If keyword matches content of this LTTextBox-object, then initiate the data carrier object
+                    (XYWordMatch-instance) and store position data there: """
                     if any(word in text_with_keyword for word in keywords):
-
-                        ###################################################################################
                         word_match = XYWordMatch(x0=x0, x1=x1, y0=y0, y1=y1, neighbour_tolerance=neighbour_tolerance,
-                                                 table_tolerance=table_tolerance)
-                        ###################################################################################
-
-                        text_with_keyword_clean = text_with_keyword.replace('\n\n', '\n').replace('\n', ' ').strip()
-
-                        # Case 1: If the found string already contains the keyword and a number
-                        # if any(term.isdigit() for term in text):
-                        #     word_match.add_short_text_and_number(text)
-                        ###################################################################################
-                        # III. Search starts:
+                                                 table_x_tolerance=table_x_tolerance,
+                                                 table_y_tolerance=table_y_tolerance)
+                        """ III. Search starts here: 
+                        III.A. Start from the page beginning and go through all objects (called: second_layout_obj) on 
+                        this page. The goal: Check if any of these second_layout_obj have the same y-coordinates 
+                        (height position) as the first_layout_obj (whose text might be the keyword). If so, store it, 
+                        together with the x-position of LTTextBox-object that contains any of the 'table_keywords' 
+                        parameter: """
                         for second_layout_obj in page_layout:
-                            # Now we check neighbour objects, i.e those objects whose y-coordinates
-                            # (height position) or x-coordinates (width position) are nearby:
-                            xx0, yy0, xx1, yy1 = round(second_layout_obj.bbox[0], decimals), round(
-                                second_layout_obj.bbox[1], decimals), \
-                                                 round(second_layout_obj.bbox[2], decimals), round(
-                                second_layout_obj.bbox[3], decimals)
-                            # IV. First, we get texts that might contain the keyword and keyword values:
                             if isinstance(second_layout_obj, LTTextBox):
+                                """ Get individual lines of second_layout_obj, which is a LTTextBox: """
+                                for line in second_layout_obj:
+                                    if isinstance(line, LTTextLine):
+                                        xx0, yy0, xx1, yy1, text_table = \
+                                            self.get_coordinates(layout_obj=line, decimals=decimals)
+                                        """ Get y-coordinates of keyword: """
+                                        if any(word in text_table for word in keywords) and \
+                                                len(text_table) < short_text_max_len:
+                                            y0_keyword, y1_keyword = yy0, yy1
+                                            word_match.set_table_keyword_value_y_coordinates_plus_tolerance(
+                                                y0=y0_keyword,
+                                                y1=y1_keyword)
+                                        """ Get x-coordinates of table_keyword: """
+                                        if any(word in text_table for word in table_keywords) and \
+                                                len(text_table) < short_text_max_len:
+                                            x0_table_keyword, x1_table_keyword = xx0, xx1
+                                            word_match.set_table_keyword_value_x_coordinates_plus_tolerance(
+                                                x0=x0_table_keyword,
+                                                x1=x1_table_keyword)
+                        """ III.B. Start AGAIN from the page beginning and go through all objects 
+                        (called: second_layout_obj) on this page. The goal now: collect matching data: """
+                        for second_layout_obj in page_layout:
+                            if isinstance(second_layout_obj, LTTextBox) or isinstance(second_layout_obj, LTTextLine):
+                                xx0, yy0, xx1, yy1, text_found = self.get_coordinates(layout_obj=second_layout_obj,
+                                                                                      decimals=decimals)
+                                """ III.B.1. Check if any of these second_layout_obj have y-coordinates
+                                (height position) or x-coordinates (width position) that are nearby: """
+                                text_found_clean = text_found.replace('\n\n', '\n').replace('\n', ' ').strip()
                                 if word_match.xx0_xx1_is_within_neighbour_bounds(xx0=xx0, xx1=xx1) or \
                                         word_match.yy0_yy1_is_within_neighbour_bounds(yy0=yy0, yy1=yy1):
-                                    text_nearby = second_layout_obj.get_text()
-                                    text_nearby_clean = text_nearby.replace('\n\n', '\n').replace('\n', ' ').strip()
-                                    matching_sentences_in_text_nearby = \
-                                        set([sentence for sentence in text_nearby_clean.split('.') for word in
+                                    """ The text in these second_layout_obj must contain any of the words in the 
+                                    parameter 'search_word_list' : """
+                                    matching_sentences_in_text_found = \
+                                        set([sentence for sentence in text_found_clean.split('.') for word in
                                              search_word_list if word in sentence])
-                                    # We want to make sure that the text also contains a number, potentially
-                                    # the keyword value:
-                                    if any(term.isdigit() for term in text_nearby_clean) and any(
-                                            term.isascii() for term in text_nearby_clean) and len(
-                                            text_nearby_clean) < short_text_max_len:
-                                        for matching_sentence in matching_sentences_in_text_nearby:
+                                    """ If the found text contains a numeric value and is NOT LONGER than the parameter
+                                    'short_text_max_len' (characters), it is stored as 'short_text_and_number': """
+                                    if any(term.isdigit() for term in text_found_clean) and any(
+                                            term.isascii() for term in text_found_clean) and len(
+                                        text_found_clean) < short_text_max_len:
+                                        for matching_sentence in matching_sentences_in_text_found:
                                             word_match.add_short_text_and_number(matching_sentence)
-                                    # Case 3: If the text is LONGER than short_text_max_len chars, we later might
-                                    # try the word2vec approach:
                                     else:
-                                        for matching_sentence in matching_sentences_in_text_nearby:
+                                        """ If the text is LONGER than short_text_max_len chars, we later might
+                                        try the word2vec approach: """
+                                        for matching_sentence in matching_sentences_in_text_found:
                                             word_match.add_text_for_word2vec(matching_sentence)
 
-                            # V. Second, we get data that might be in a table:
-                            if isinstance(second_layout_obj, LTTextBox) or isinstance(second_layout_obj, LTTextLine):
-                                # This is for table checks later
-                                text_table = second_layout_obj.get_text()
-                                text_table_clean = text_table.replace('\n\n', '\n').replace('\n', ' ').strip()
-                                if any(word in text_table for word in table_keywords) and len(
-                                        text_table_clean) < short_text_max_len:
-                                    word_match.set_table_keyword_value_coordinates_plus_tolerance(x0=xx0, x1=xx1, y0=y0,
-                                                                                                  y1=y1)
-                                # If coordinates of keyword and table_keyword cross, this might be the value
-                                # in a table:
-                                # if (y0, y1) is (yy0, yy1) and (xx0, xx1) in xx_coordinates_table_keyword:
-                                #     word_match.add_table_values(text_table_clean)
-                                if word_match.are_keyword_coordinates_within_tolerance(xx0=xx0, xx1=xx1, yy0=yy0,
-                                                                                       yy1=yy1):
-                                    word_match.add_table_values(text_table_clean)
-                                    # Get Textbox with the coordinates y0,y1,xx0,xx1
-                                # if word_match.xx0_xx1_is_within_table_bounds(xx0=xx0, xx1=xx1):
-                                #     if any(term.isdigit() for term in text_table_clean):
-                                #         # Case 2: If both, the text_with_keyword and text_nearby
-                                #         # are SHORTER than short_text_max_len chars:
-                                #         if len(text_table_clean) < short_text_max_len:
-                                #             word_match.add_table_values(text_table_clean)
+                                """ III.B.2. Check if any of these second_layout_obj have the same y-coordinates
+                                (height position) as the first_layout_obj (whose text might be the keyword) and x-position
+                                of LTTextBox-object that contains any of the 'table_keywords' parameter: """
+                                for line in second_layout_obj:
+                                    if isinstance(line, LTTextLine):
+                                        xx0, yy0, xx1, yy1, text_table = \
+                                            self.get_coordinates(layout_obj=line, decimals=decimals)
+                                        text_table_clean = text_table.replace('\n\n', '\n').replace('\n', ' ').strip()
+                                        if word_match.are_table_keyword_coordinates_within_tolerance(xx0=xx0, xx1=xx1,
+                                                                                                     yy0=yy0, yy1=yy1):
+                                            word_match.add_table_values(text_table_clean)
 
+                        """ Collect all data of one page """
                         finding['page_number'] = page_number
                         for phrase in word_match.short_text_and_number:
                             finding['short_text_and_number'].add(phrase)
@@ -388,10 +249,15 @@ class PDFMiner:
                             finding['text_for_word2vec'].add(phrase)
                         for phrase in word_match.table_values:
                             finding['table_values'].add(phrase)
-            # Finally, append all cleaned finding lists into another list ("findings"):
+            """ Finally, append all page findings to an aggregated list ("findings"):"""
             if finding['page_number'] is not None:
                 findings.append(finding)
         return findings
 
-    def contains_digit(self, text: str):
-        return any(word.isdigit() for word in text)
+    def get_coordinates(self, layout_obj, decimals: int = 1):
+        x0, y0, x1, y1, text_with_keyword = round(layout_obj.bbox[0], decimals), \
+                                            round(layout_obj.bbox[1], decimals), \
+                                            round(layout_obj.bbox[2], decimals), \
+                                            round(layout_obj.bbox[3], decimals), \
+                                            layout_obj.get_text()
+        return x0, y0, x1, y1, text_with_keyword
