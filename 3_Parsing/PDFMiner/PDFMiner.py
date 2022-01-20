@@ -123,7 +123,7 @@ class PDFMiner:
         self.document = PDFDocument(self.parser)
         self.resource_manager = PDFResourceManager()
         self.layout_params = LAParams(line_overlap=0.5, char_margin=2.0, line_margin=0.75, word_margin=0.1,
-                                      boxes_flow=-1.0, detect_vertical=False, all_texts=True)
+                                      boxes_flow=+1.0, detect_vertical=False, all_texts=True)
         # My settings:
         # (line_overlap=0.5, char_margin=2.0, line_margin=0.75, word_margin=0.1, boxes_flow=0.0,
         #                                  detect_vertical=False, all_texts=True)
@@ -151,7 +151,7 @@ class PDFMiner:
                     print(f'At {one}, {two}, {three}, {four} text is: {text}')
 
     def find_word(self, keywords: List[str], search_word_list: List[str], neighbour_tolerance: float,
-                  table_keywords: List[str], table_x_tolerance: float = 5.00, table_y_tolerance: float = 0.25,
+                  table_keywords: List[str], table_x_tolerance: float = 2.50, table_y_tolerance: float = 0.25,
                   table_value_max_len: int = 12, short_text_max_len: int = 50, decimals: int = 1):
         findings = list()
         page_number = 0
@@ -188,6 +188,9 @@ class PDFMiner:
                                             self.get_coordinates(layout_obj=line, decimals=decimals)
                                         """ Get y-coordinates of keyword: """
                                         if any(word in text_table for word in keywords):
+                                            ########################
+                                            # print(f'page: {page_number}, text_table for keyword:{text_table}')
+                                            ####################
                                             y0_keyword, y1_keyword = yy0, yy1
                                             word_match.set_table_keyword_value_y_coordinates_plus_tolerance(
                                                 y0=y0_keyword,
@@ -195,6 +198,9 @@ class PDFMiner:
                                         """ Get x-coordinates of table_keyword: """
                                         if any(word in text_table for word in table_keywords) and \
                                                 len(text_table) < table_value_max_len:
+                                            ########################
+                                            # print(f'page: {page_number}, text_table for table_keyword:{text_table}')
+                                            ####################
                                             x0_table_keyword, x1_table_keyword = xx0, xx1
                                             word_match.set_table_keyword_value_x_coordinates_plus_tolerance(
                                                 x0=x0_table_keyword,
