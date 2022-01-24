@@ -10,3 +10,7 @@ ing_pdf = '../../1_Reports/Sample_Reports/INGA - ING Groep NV (ING-NL) - Annual 
 ing_converted_pdf = '../../1_Reports/Sample_Reports/ING2018Converted.pdf'
 pets_pdf = '../../1_Reports/Sample_Reports/PETS2021.pdf'
 pets_converted_pdf = '../../1_Reports/Sample_Reports/PETS2021ConvertedWithPDF24.pdf'
+gns_pdf = '../../1_Reports/Sample_Reports/GNS - Annual Report for period end 30Jun2021 English PDF - 15-Oct-21.pdf'
+pdfoutput = '../../1_Reports/Sample_Reports/pdfoutput.pdf'
+gns_converted = '../../1_Reports/Sample_Reports/GNS2021Converted.pdf'
+output_pdf = '../../1_Reports/Sample_Reports/output.pdf'

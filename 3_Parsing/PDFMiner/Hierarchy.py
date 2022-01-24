@@ -40,3 +40,7 @@ def get_optional_text(o: Any) -> str:
     return ''
 
 
+from config import *
+
+#path = siemens_pdf
+path = gns_pdf

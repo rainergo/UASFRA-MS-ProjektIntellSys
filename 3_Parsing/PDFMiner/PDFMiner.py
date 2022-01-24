@@ -1,9 +1,10 @@
 from io import StringIO
-from pdfminer.layout import LAParams, LTTextBox, LTTextLine, LTTextLineHorizontal
-from pdfminer.pdfpage import PDFPage
+from pdfminer.layout import LAParams, LTTextBox, LTTextContainer, LTTextLine, LTTextLineHorizontal
+from pdfminer.pdfdevice import PDFDevice
+from pdfminer.pdfpage import PDFPage, PDFTextExtractionNotAllowed
 from pdfminer.pdfinterp import PDFResourceManager
 from pdfminer.pdfinterp import PDFPageInterpreter
-from pdfminer.converter import PDFPageAggregator
+from pdfminer.converter import PDFPageAggregator, PDFConverter
 from pdfminer.converter import TextConverter
 from pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdftypes import resolve1
@@ -19,10 +20,6 @@ from typing import List
 
 class XYWordMatch:
     """Class for keeping track of (coordinates for) LTTextBoxes that match the search word."""
-
-    # short_text_and_number = set()
-    # text_for_word2vec = set()
-    # table_values = set()
 
     def __init__(self, x0: float, x1: float, y0: float, y1: float, neighbour_tolerance: float = 0.75,
                  table_x_tolerance: float = 0.75, table_y_tolerance: float = 0.75):
@@ -90,7 +87,7 @@ class XYWordMatch:
         return x0_lower, x1_upper
 
     def set_table_keyword_value_x_coordinates_plus_tolerance(self, x0: float, x1: float):
-        """ The y-position should only be minimally different from keyword position, but the x-position could
+        """ The y-position should only be minimally different from the keyword position, but the x-position could
         deviate more from the table_keyword-position due to different size of table_keyword and the keyword value """
         x_tolerance = (x1 - x0) * self.table_x_tolerance
         x0_lower = x0 - x_tolerance
@@ -98,7 +95,7 @@ class XYWordMatch:
         self.xx_coordinates_table_keyword_values_plus_tolerance.append((x0_lower, x1_upper))
 
     def set_table_keyword_value_y_coordinates_plus_tolerance(self, y0: float, y1: float):
-        """ The y-position should only be minimally different from keyword position, but the x-position could
+        """ The y-position should only be minimally different from the keyword position, but the x-position could
         deviate more from the table_keyword-position due to different size of table_keyword and the keyword value """
         y_tolerance = (y1 - y0) * self.table_y_tolerance
         y0_lower = y0 - y_tolerance
@@ -118,23 +115,31 @@ class XYWordMatch:
 class PDFMiner:
 
     def __init__(self, path: str):
-        self.path = open(path, 'rb')
-        self.parser = PDFParser(self.path)
+        self.stream = open(path, 'rb')
+        self.parser = PDFParser(self.stream)
         self.document = PDFDocument(self.parser)
+        self.doc_is_extractable = self.document.is_extractable
         self.resource_manager = PDFResourceManager()
+        """ 
+        My standard settings for layout parameters:
+        (line_overlap=0.5, char_margin=2.0, line_margin=0.75, word_margin=0.1, boxes_flow=0.0,
+                                                        detect_vertical=False, all_texts=True)
+        Default settings for layout parameters:
+        (line_overlap=0.5, char_margin=2.0, line_margin=0.5, word_margin=0.1,boxes_flow=0.5, detect_vertical=False, 
+        all_texts=False)
+        Source: https://pdfminersix.readthedocs.io/en/latest/reference/composable.html#laparams """
         self.layout_params = LAParams(line_overlap=0.5, char_margin=2.0, line_margin=0.75, word_margin=0.1,
-                                      boxes_flow=+1.0, detect_vertical=False, all_texts=True)
-        # My settings:
-        # (line_overlap=0.5, char_margin=2.0, line_margin=0.75, word_margin=0.1, boxes_flow=0.0,
-        #                                  detect_vertical=False, all_texts=True)
-
-        # Default settings:
-        # (line_overlap=0.5, char_margin=2.0, line_margin=0.5, word_margin=0.1,
-        #  boxes_flow=0.5, detect_vertical=False, all_texts=False)
-        # Source: https://pdfminersix.readthedocs.io/en/latest/reference/composable.html#laparams
-        self.page_aggregator = PDFPageAggregator(self.resource_manager, laparams=self.layout_params)
+                                      boxes_flow=0.0, detect_vertical=False, all_texts=True)
+        # Instead of a page_aggregator, a TextConverter-Instance could be passed to the self.interpreter:
+        # self.output_string = StringIO()
+        # self.text_converter = TextConverter(rsrcmgr=self.resource_manager, outfp=self.output_string,
+        #                                     laparams=self.layout_params)
+        self.page_aggregator = PDFPageAggregator(rsrcmgr=self.resource_manager, laparams=self.layout_params)
+        # self.interpreter = PDFPageInterpreter(self.resource_manager, self.text_converter)
         self.interpreter = PDFPageInterpreter(self.resource_manager, self.page_aggregator)
-        self.pages = PDFPage.get_pages(self.path)
+        self.pages = PDFPage.get_pages(fp=self.stream, pagenos=None, maxpages=0, password='',
+                                       caching=True, check_extractable=False)
+        # self.pages = PDFPage.create_pages(self.document)
 
     def process_pages(self):
         page_number = 0
@@ -144,15 +149,17 @@ class PDFMiner:
             self.interpreter.process_page(page)
             layout = self.page_aggregator.get_result()
             for lobj in layout:
-                if isinstance(lobj, LTTextBox):
+                if isinstance(lobj, LTTextContainer):
                     print('Type is:', type(lobj))
                     one, two, three, four, text = lobj.bbox[0], lobj.bbox[1], lobj.bbox[2], lobj.bbox[
                         3], lobj.get_text()
                     print(f'At {one}, {two}, {three}, {four} text is: {text}')
 
     def find_word(self, keywords: List[str], search_word_list: List[str], neighbour_tolerance: float,
-                  table_keywords: List[str], table_x_tolerance: float = 2.50, table_y_tolerance: float = 0.25,
+                  table_keywords: List[str], table_x_tolerance: float = 4.00, table_y_tolerance: float = 0.10,
                   table_value_max_len: int = 12, short_text_max_len: int = 50, decimals: int = 1):
+        if not self.doc_is_extractable:
+            raise PDFTextExtractionNotAllowed('The document does not allow extraction ! ')
         findings = list()
         page_number = 0
         """ I. Iterate over all pages: """
@@ -164,7 +171,7 @@ class PDFMiner:
                        'table_values': set()}
             """ II. Iterate over all LTTextBox-objects (called: first_layout_obj) on a page: """
             for first_layout_obj in page_layout:
-                if isinstance(first_layout_obj, LTTextBox) or isinstance(first_layout_obj, LTTextLine):
+                if isinstance(first_layout_obj, LTTextContainer) or isinstance(first_layout_obj, LTTextLine):
                     x0, y0, x1, y1, text_with_keyword = self.get_coordinates(layout_obj=first_layout_obj,
                                                                              decimals=decimals)
                     """ If keyword matches content of this LTTextBox-object, then initiate the data carrier object
@@ -176,11 +183,11 @@ class PDFMiner:
                         """ III. Search starts here: 
                         III.A. Start from the page beginning and go through all objects (called: second_layout_obj) on 
                         this page. The goal: Check if any of these second_layout_obj have the same y-coordinates 
-                        (height position) as the first_layout_obj (whose text might be the keyword). If so, store it, 
+                        (height position) as the first_layout_obj (whose text contains the keyword). If so, store it, 
                         together with the x-position of LTTextBox-object that contains any of the 'table_keywords' 
                         parameter: """
                         for second_layout_obj in page_layout:
-                            if isinstance(second_layout_obj, LTTextBox):
+                            if isinstance(second_layout_obj, LTTextContainer):
                                 """ Get individual lines of second_layout_obj, which is a LTTextBox: """
                                 for line in second_layout_obj:
                                     if isinstance(line, LTTextLine) or isinstance(line, LTTextLineHorizontal):
@@ -189,7 +196,7 @@ class PDFMiner:
                                         """ Get y-coordinates of keyword: """
                                         if any(word in text_table for word in keywords):
                                             ########################
-                                            # print(f'page: {page_number}, text_table for keyword:{text_table}')
+                                            #print(f'page: {page_number}, text_table for keyword:{text_table}')
                                             ####################
                                             y0_keyword, y1_keyword = yy0, yy1
                                             word_match.set_table_keyword_value_y_coordinates_plus_tolerance(
@@ -199,7 +206,7 @@ class PDFMiner:
                                         if any(word in text_table for word in table_keywords) and \
                                                 len(text_table) < table_value_max_len:
                                             ########################
-                                            # print(f'page: {page_number}, text_table for table_keyword:{text_table}')
+                                            #print(f'page: {page_number}, text_table for table_keyword:{text_table}')
                                             ####################
                                             x0_table_keyword, x1_table_keyword = xx0, xx1
                                             word_match.set_table_keyword_value_x_coordinates_plus_tolerance(
@@ -208,7 +215,8 @@ class PDFMiner:
                         """ III.B. Start AGAIN from the page beginning and go through all objects 
                         (called: second_layout_obj) on this page. The goal now: collect matching data: """
                         for second_layout_obj in page_layout:
-                            if isinstance(second_layout_obj, LTTextBox) or isinstance(second_layout_obj, LTTextLine):
+                            if isinstance(second_layout_obj, LTTextContainer) or isinstance(second_layout_obj,
+                                                                                            LTTextLine):
                                 xx0, yy0, xx1, yy1, text_found = self.get_coordinates(layout_obj=second_layout_obj,
                                                                                       decimals=decimals)
                                 """ III.B.1. Check if any of these second_layout_obj have y-coordinates
@@ -225,7 +233,7 @@ class PDFMiner:
                                     'short_text_max_len' (characters), it is stored as 'short_text_and_number': """
                                     if any(term.isdigit() for term in text_found_clean) and any(
                                             term.isascii() for term in text_found_clean) and len(
-                                            text_found_clean) < short_text_max_len:
+                                        text_found_clean) < short_text_max_len:
                                         for matching_sentence in matching_sentences_in_text_found:
                                             word_match.add_short_text_and_number(matching_sentence)
                                     else:
@@ -257,6 +265,7 @@ class PDFMiner:
             """ Finally, append all page findings to an aggregated list ("findings"):"""
             if finding['page_number'] is not None:
                 findings.append(finding)
+        # self.stream.close()
         return findings
 
     def get_coordinates(self, layout_obj, decimals: int = 1):
@@ -266,3 +275,4 @@ class PDFMiner:
                                             round(layout_obj.bbox[3], decimals), \
                                             layout_obj.get_text()
         return x0, y0, x1, y1, text_with_keyword
+
