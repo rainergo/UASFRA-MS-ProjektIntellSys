@@ -14,3 +14,4 @@ gns_pdf = '../../1_Reports/Sample_Reports/GNS - Annual Report for period end 30J
 pdfoutput = '../../1_Reports/Sample_Reports/pdfoutput.pdf'
 gns_converted = '../../1_Reports/Sample_Reports/GNS2021Converted.pdf'
 output_pdf = '../../1_Reports/Sample_Reports/output.pdf'
+gns_printed = '../../1_Reports/Sample_Reports/test2.pdf'
