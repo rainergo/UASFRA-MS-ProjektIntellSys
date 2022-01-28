@@ -6,7 +6,7 @@ setup(
     packages=[''],
     url='',
     license='',
-    author='Portfolio-Resolution',
+    author='Rainer Gogel',
     author_email='',
     description=''
 )
