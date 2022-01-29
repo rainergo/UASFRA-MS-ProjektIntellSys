@@ -12,7 +12,7 @@ from pdfminer.pdfparser import PDFParser
 from pdfminer.psparser import PSLiteral, PSKeyword
 from pdfminer.utils import decode_text
 from pdfminer.high_level import extract_pages
-from typing import List
+from typing import List, Dict
 
 """ Documentation is here:
     https://pdfminersix.readthedocs.io/en/latest/index.html
@@ -116,6 +116,7 @@ class XYWordMatch:
 class PDFMiner:
 
     def __init__(self, path: str):
+        self.path = path
         self.stream = open(path, 'rb')
         self.parser = PDFParser(self.stream)
         self.document = PDFDocument(self.parser)
@@ -159,7 +160,7 @@ class PDFMiner:
                         3], lobj.get_text()
                     print(f'At {one}, {two}, {three}, {four} text is: {text}')
 
-    def find_word(self, keywords: List[str], search_word_list: List[str], neighbour_tolerance: float,
+    def find_word(self, keywords_dict_of_list: Dict[str, List[str]], search_word_list: List[str], neighbour_tolerance: float,
                   table_keywords: List[str], table_x_tolerance: float = 4.00, table_y_tolerance: float = 0.10,
                   table_value_max_len: int = 12, short_text_max_len: int = 50, decimals: int = 1):
         if not self.doc_is_extractable:
@@ -169,104 +170,128 @@ class PDFMiner:
         """ I. Iterate over all pages: """
         for page_layout in self.pages:
             page_number += 1
-            finding = {'page_number': None, 'short_text_and_number': set(), 'text_for_word2vec': set(),
-                       'table_values': set()}
+            page_findings = dict()
             """ II. Iterate over all LTTextBox-objects (called: first_layout_obj) on a page: """
-            for first_layout_obj in page_layout:
-                if isinstance(first_layout_obj, LTTextContainer) or isinstance(first_layout_obj, LTTextLine):
-                    x0, y0, x1, y1, text_with_keyword = self.get_coordinates(layout_obj=first_layout_obj,
-                                                                             decimals=decimals)
-                    """ If keyword matches content of this LTTextBox-object, then initiate the data carrier object
-                    (XYWordMatch-instance) and store position data there: """
-                    if any(word in text_with_keyword for word in keywords):
-                        word_match = XYWordMatch(x0=x0, x1=x1, y0=y0, y1=y1, neighbour_tolerance=neighbour_tolerance,
-                                                 table_x_tolerance=table_x_tolerance,
-                                                 table_y_tolerance=table_y_tolerance)
-                        """ III. Search starts here: 
-                        III.A. Start from the page beginning and go through all objects (called: second_layout_obj) on 
-                        this page. The goal: Check if any of these second_layout_obj have the same y-coordinates 
-                        (height position) as the first_layout_obj (whose text contains the keyword). If so, store it, 
-                        together with the x-position of LTTextBox-object that contains any of the 'table_keywords' 
-                        parameter: """
-                        for second_layout_obj in page_layout:
-                            if isinstance(second_layout_obj, LTTextContainer):
-                                """ Get individual lines of second_layout_obj, which is a LTTextBox: """
-                                for line in second_layout_obj:
-                                    if isinstance(line, LTTextLine) or isinstance(line, LTTextLineHorizontal):
-                                        xx0, yy0, xx1, yy1, text_table = \
-                                            self.get_coordinates(layout_obj=line, decimals=decimals)
-                                        """ Get y-coordinates of keyword: """
-                                        if any(word in text_table for word in keywords):
-                                            ########################
-                                            #print(f'page: {page_number}, text_table for keyword:{text_table}')
-                                            ####################
-                                            y0_keyword, y1_keyword = yy0, yy1
-                                            word_match.set_table_keyword_value_y_coordinates_plus_tolerance(
-                                                y0=y0_keyword,
-                                                y1=y1_keyword)
-                                        """ Get x-coordinates of table_keyword: """
-                                        if any(word in text_table for word in table_keywords) and \
-                                                len(text_table) < table_value_max_len:
-                                            ########################
-                                            #print(f'page: {page_number}, text_table for table_keyword:{text_table}')
-                                            ####################
-                                            x0_table_keyword, x1_table_keyword = xx0, xx1
-                                            word_match.set_table_keyword_value_x_coordinates_plus_tolerance(
-                                                x0=x0_table_keyword,
-                                                x1=x1_table_keyword)
-                        """ III.B. Start AGAIN from the page beginning and go through all objects 
-                        (called: second_layout_obj) on this page. The goal now: collect matching data: """
-                        for second_layout_obj in page_layout:
-                            if isinstance(second_layout_obj, LTTextContainer) or isinstance(second_layout_obj,
-                                                                                            LTTextLine):
-                                xx0, yy0, xx1, yy1, text_found = self.get_coordinates(layout_obj=second_layout_obj,
-                                                                                      decimals=decimals)
-                                """ III.B.1. Check if any of these second_layout_obj have y-coordinates
-                                (height position) or x-coordinates (width position) that are nearby: """
-                                text_found_clean = text_found.replace('\n\n', '\n').replace('\n', ' ').strip()
-                                if word_match.xx0_xx1_is_within_neighbour_bounds(xx0=xx0, xx1=xx1) or \
-                                        word_match.yy0_yy1_is_within_neighbour_bounds(yy0=yy0, yy1=yy1):
-                                    """ The text in these second_layout_obj must contain any of the words in the 
-                                    parameter 'search_word_list' : """
-                                    matching_sentences_in_text_found = \
-                                        set([sentence for sentence in text_found_clean.split('.') for word in
-                                             search_word_list if word in sentence])
-                                    """ If the found text contains a numeric value and is NOT LONGER than the parameter
-                                    'short_text_max_len' (characters), it is stored as 'short_text_and_number': """
-                                    if any(term.isdigit() for term in text_found_clean) and any(
-                                            term.isascii() for term in text_found_clean) and len(
-                                        text_found_clean) < short_text_max_len:
-                                        for matching_sentence in matching_sentences_in_text_found:
-                                            word_match.add_short_text_and_number(matching_sentence)
-                                    else:
-                                        """ If the text is LONGER than short_text_max_len chars, we later might
-                                        try the word2vec approach: """
-                                        for matching_sentence in matching_sentences_in_text_found:
-                                            word_match.add_text_for_word2vec(matching_sentence)
+            for keywords_key, keywords_list in keywords_dict_of_list.items():
+                word_match = None
+                for first_layout_obj in page_layout:
+                    if isinstance(first_layout_obj, LTTextContainer) or isinstance(first_layout_obj, LTTextLine):
+                        x0, y0, x1, y1, text_with_keyword = self.get_coordinates(layout_obj=first_layout_obj,
+                                                                                 decimals=decimals)
 
-                                """ III.B.2. Check if any of these second_layout_obj have the same y-coordinates
-                                (height position) as the first_layout_obj (whose text might be the keyword) and x-position
-                                of LTTextBox-object that contains any of the 'table_keywords' parameter: """
-                                for line in second_layout_obj:
-                                    if isinstance(line, LTTextLine):
-                                        xx0, yy0, xx1, yy1, text_table = \
-                                            self.get_coordinates(layout_obj=line, decimals=decimals)
-                                        text_table_clean = text_table.replace('\n\n', '\n').replace('\n', ' ').strip()
-                                        if word_match.are_table_keyword_coordinates_within_tolerance(xx0=xx0, xx1=xx1,
-                                                                                                     yy0=yy0, yy1=yy1):
-                                            word_match.add_table_values(text_table_clean)
+                        keyword_finding = None
 
-                        """ Collect all data of one page """
-                        finding['page_number'] = page_number
-                        for phrase in word_match.short_text_and_number:
-                            finding['short_text_and_number'].add(phrase)
-                        for phrase in word_match.text_for_word2vec:
-                            finding['text_for_word2vec'].add(phrase)
-                        for phrase in word_match.table_values:
-                            finding['table_values'].add(phrase)
+                        """ If keyword matches content of this LTTextBox-object, then initiate the data carrier object
+                        (XYWordMatch-instance) and store position data there: """
+                        if any(word in text_with_keyword for word in keywords_list):
+                            word_match = XYWordMatch(x0=x0, x1=x1, y0=y0, y1=y1, neighbour_tolerance=neighbour_tolerance,
+                                                     table_x_tolerance=table_x_tolerance,
+                                                     table_y_tolerance=table_y_tolerance)
+                            """ III. Search starts here: 
+                            III.A. Start from the page beginning and go through all objects (called: second_layout_obj) on 
+                            this page. The goal: Check if any of these second_layout_obj have the same y-coordinates 
+                            (height position) as the first_layout_obj (whose text contains the keyword). If so, store it, 
+                            together with the x-position of LTTextBox-object that contains any of the 'table_keywords' 
+                            parameter: """
+                            for second_layout_obj in page_layout:
+                                if isinstance(second_layout_obj, LTTextContainer):
+                                    """ Get individual lines of second_layout_obj, which is a LTTextBox: """
+                                    for line in second_layout_obj:
+                                        if isinstance(line, LTTextLine) or isinstance(line, LTTextLineHorizontal):
+                                            xx0, yy0, xx1, yy1, text_table = \
+                                                self.get_coordinates(layout_obj=line, decimals=decimals)
+                                            """ Get y-coordinates of keyword: """
+                                            if any(word in text_table for word in keywords_list):
+                                                ########################
+                                                # print(f'page: {page_number}, text_table for keyword:{text_table}')
+                                                ####################
+                                                y0_keyword, y1_keyword = yy0, yy1
+                                                word_match.set_table_keyword_value_y_coordinates_plus_tolerance(
+                                                    y0=y0_keyword,
+                                                    y1=y1_keyword)
+                                            """ Get x-coordinates of table_keyword: """
+                                            if any(word in text_table for word in table_keywords) and \
+                                                    len(text_table) < table_value_max_len:
+                                                ########################
+                                                # print(f'page: {page_number}, text_table for table_keyword:{text_table}')
+                                                ####################
+                                                x0_table_keyword, x1_table_keyword = xx0, xx1
+                                                word_match.set_table_keyword_value_x_coordinates_plus_tolerance(
+                                                    x0=x0_table_keyword,
+                                                    x1=x1_table_keyword)
+                            """ III.B. Start AGAIN from the page beginning and go through all objects 
+                            (called: second_layout_obj) on this page. The goal now: collect matching data: """
+                            for second_layout_obj in page_layout:
+                                if isinstance(second_layout_obj, LTTextContainer) or isinstance(second_layout_obj,
+                                                                                                LTTextLine):
+                                    xx0, yy0, xx1, yy1, text_found = self.get_coordinates(layout_obj=second_layout_obj,
+                                                                                          decimals=decimals)
+                                    """ III.B.1. Check if any of these second_layout_obj have y-coordinates
+                                    (height position) or x-coordinates (width position) that are nearby: """
+                                    text_found_clean = text_found.replace('\n\n', '\n').replace('\n', ' ').strip()
+                                    if word_match.xx0_xx1_is_within_neighbour_bounds(xx0=xx0, xx1=xx1) or \
+                                            word_match.yy0_yy1_is_within_neighbour_bounds(yy0=yy0, yy1=yy1):
+
+                                        """ The text in these second_layout_obj must contain any of the words in the 
+                                        parameter 'search_word_list' : """
+                                        matching_sentences_in_text_found = \
+                                            set([sentence for sentence in text_found_clean.split('.') for word in
+                                                 search_word_list if word in sentence])
+                                        """ If the found text contains a numeric value and is NOT LONGER than the parameter
+                                        'short_text_max_len' (characters), it is stored as 'short_text_and_number': """
+                                        if any(term.isdigit() for term in text_found_clean) and any(
+                                                term.isascii() for term in text_found_clean) and len(
+                                            text_found_clean) < short_text_max_len:
+                                            for matching_sentence in matching_sentences_in_text_found:
+                                                word_match.add_short_text_and_number(matching_sentence)
+                                        else:
+                                            """ If the text is LONGER than short_text_max_len chars, we later might
+                                            try the word2vec approach: """
+                                            for matching_sentence in matching_sentences_in_text_found:
+                                                word_match.add_text_for_word2vec(matching_sentence)
+
+                                    """ III.B.2. Check if any of these second_layout_obj have the same y-coordinates
+                                    (height position) as the first_layout_obj (whose text might be the keyword) and x-position
+                                    of LTTextBox-object that contains any of the 'table_keywords' parameter: """
+                                    for line in second_layout_obj:
+                                        if isinstance(line, LTTextLine):
+                                            xx0, yy0, xx1, yy1, text_table = \
+                                                self.get_coordinates(layout_obj=line, decimals=decimals)
+                                            text_table_clean = text_table.replace('\n\n', '\n').replace('\n', ' ').strip()
+                                            if word_match.are_table_keyword_coordinates_within_tolerance(xx0=xx0, xx1=xx1,
+                                                                                                         yy0=yy0, yy1=yy1):
+                                                word_match.add_table_values(text_table_clean)
+
+                """ Collect all data of one page """
+                if word_match:
+                    keyword_finding = dict()
+                    keyword_finding['short_text_and_number'] = set()
+                    keyword_finding['text_for_word2vec'] = set()
+                    keyword_finding['table_values'] = set()
+                    for phrase in word_match.short_text_and_number:
+                        keyword_finding['short_text_and_number'].add(phrase)
+                    for phrase in word_match.text_for_word2vec:
+                        keyword_finding['text_for_word2vec'].add(phrase)
+                    for phrase in word_match.table_values:
+                        keyword_finding['table_values'].add(phrase)
+                    if keyword_finding:
+                        page_findings['page_number'] = page_number
+                        page_findings[keywords_key] = keyword_finding
             """ Finally, append all page findings to an aggregated list ("findings"):"""
-            if finding['page_number'] is not None:
-                findings.append(finding)
+            if page_findings:
+                findings.append(page_findings)
+                            # """ Collect all data of one page """
+                            # keyword_finding['page_number'] = page_number
+                            # keyword_finding['keywords_key'] = keywords_key
+                            # for phrase in word_match.short_text_and_number:
+                            #     keyword_finding['short_text_and_number'].add(phrase)
+                            # for phrase in word_match.text_for_word2vec:
+                            #     keyword_finding['text_for_word2vec'].add(phrase)
+                            # for phrase in word_match.table_values:
+                            #     keyword_finding['table_values'].add(phrase)
+            # """ Finally, append all page findings to an aggregated list ("findings"):"""
+            # if keyword_finding['page_number'] is not None:
+            #     findings.append(keyword_finding)
         # self.stream.close()
         return findings
 
@@ -278,3 +303,14 @@ class PDFMiner:
                                             layout_obj.get_text()
         return x0, y0, x1, y1, text_with_keyword
 
+    def get_year_and_fy_from_first_page(self) -> list or None:
+        pages = extract_pages(self.path, page_numbers=[0], maxpages=1)
+        for page in pages:
+            for layout_obj in page:
+                if isinstance(layout_obj, LTTextContainer) or isinstance(layout_obj, LTTextLine):
+                    text = layout_obj.get_text()
+                    word_list = text.split()
+                    for word in word_list:
+                        if len(word) == 4 and word.isdigit() and word.startswith('20'):
+                            return [word, 'FY' + word[-2:]]
+        return None
