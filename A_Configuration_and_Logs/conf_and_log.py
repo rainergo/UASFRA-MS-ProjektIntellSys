@@ -21,3 +21,5 @@ class ConfLog:
         self.pdf24_function = self.config['C_File_Conversion']['pdf24_function']
         self.pdf24_profile = self.config['C_File_Conversion']['pdf24_profile']
         self.path_to_reports_for_analysis_directory = self.config['D_Search']['path_to_reports_for_analysis_directory']
+        self.keyword_dict_of_lists = self.config['D_Search']['keyword_dict_of_lists']
+        self.search_word_list = self.config['D_Search']['search_word_list']
