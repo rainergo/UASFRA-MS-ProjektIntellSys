@@ -289,9 +289,10 @@ class PDFMiner:
         return x0, y0, x1, y1, text_with_keyword
 
     def get_year_and_fy(self) -> list or None:
-        word = re.match(r'.*([2][0][1-2][0-9])', self.path)
-        if word:
-            return word.group(1)
+        match = re.match(r'.*([2][0][1-2][0-9])', self.path)
+        if match:
+            word = match.group(1)
+            return [word, 'FY' + word[-2:]]
         pages = extract_pages(self.path, page_numbers=[0], maxpages=1)
         for page in pages:
             for layout_obj in page:

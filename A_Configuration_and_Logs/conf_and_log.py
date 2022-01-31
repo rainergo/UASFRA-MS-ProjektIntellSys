@@ -1,10 +1,8 @@
-import os
 from configparser import ConfigParser
 import logging
 
 
 class ConfLog:
-
     # Provide full absolute path to config.ini file:
     config_ini_path = 'D:/A_STUDIUM/PYTHON/UASFRA-MS-ProjektIntellSys/A_Configuration_and_Logs/config.ini'
 
@@ -21,5 +19,5 @@ class ConfLog:
         self.pdf24_function = self.config['C_File_Conversion']['pdf24_function']
         self.pdf24_profile = self.config['C_File_Conversion']['pdf24_profile']
         self.path_to_reports_for_analysis_directory = self.config['D_Search']['path_to_reports_for_analysis_directory']
-        self.keyword_dict_of_lists = self.config['D_Search']['keyword_dict_of_lists']
-        self.search_word_list = self.config['D_Search']['search_word_list']
+        self.keyword_dict_of_lists = eval(self.config['D_Search']['keyword_dict_of_lists'])
+        self.search_word_list = eval(self.config['D_Search']['search_word_list'])
