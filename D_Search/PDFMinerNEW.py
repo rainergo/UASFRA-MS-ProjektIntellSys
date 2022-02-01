@@ -178,7 +178,7 @@ class PDFMiner:
             """ II. Iterate over all keyword_lists in the keyword_list_of_lists: """
             for keywords_key, keywords_list in keywords_dict_of_list.items():
                 word_match = None
-                """ III. Iterate over all Text objects (called: first_layout_obj) on a page: """
+                """ III. Iterate over all LTTextContainer objects (called: first_layout_obj) on a page: """
                 for first_layout_obj in page_layout:
                     if isinstance(first_layout_obj, LTTextContainer) or isinstance(first_layout_obj, LTTextLine):
                         for line in first_layout_obj:
