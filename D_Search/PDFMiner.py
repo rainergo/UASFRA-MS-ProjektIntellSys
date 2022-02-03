@@ -1,5 +1,5 @@
 from io import StringIO
-from pdfminer.layout import LAParams, LTTextBox, LTTextContainer, LTTextLine, LTTextLineHorizontal
+from pdfminer.layout import LAParams, LTTextBox, LTTextContainer, LTTextLine, LTTextLineHorizontal, LTChar
 from pdfminer.pdfdevice import PDFDevice
 from pdfminer.pdfpage import PDFPage, PDFTextExtractionNotAllowed
 from pdfminer.pdfinterp import PDFResourceManager
@@ -331,23 +331,23 @@ class PDFMiner:
 
     def get_coordinates_of_keyword(self, text_line_object: LTTextLine, keywords_list: list, decimals: int = 1) -> \
             Set[Tuple] or None:
-        if not isinstance(text_line_object, LTTextLine):
-            raise TypeError('Provided object is not of type "LTTextLine" !')
-        _, _, _, _, text_in_line = self.get_coordinates(layout_obj=text_line_object)
-        if any(word in text_in_line for word in keywords_list):
-            keyword_coordinates_in_text_line = set()
-            for keyword in keywords_list:
-                start_end_indices = get_first_last_indices_of_keyword_in_string(sentence=text_in_line, keyword=keyword)
-                for start, end in start_end_indices:
-                    word_start_and_end = list(islice(text_line_object, start, end))
-                    x0 = round(word_start_and_end[0].bbox[0], decimals)
-                    y0 = round(word_start_and_end[0].bbox[1], decimals)
-                    x1 = round(word_start_and_end[-1].bbox[2], decimals)
-                    y1 = round(word_start_and_end[-1].bbox[3], decimals)
-                    keyword_coordinates_in_text_line.add((x0, y0, x1, y1))
-            return keyword_coordinates_in_text_line
-        else:
-            return None
+        if isinstance(text_line_object, LTTextLine):
+            _, _, _, _, text_in_line = self.get_coordinates(layout_obj=text_line_object)
+            if any(word in text_in_line for word in keywords_list):
+                keyword_coordinates_in_text_line = set()
+                for keyword in keywords_list:
+                    start_end_indices = get_first_last_indices_of_keyword_in_string(sentence=text_in_line, keyword=keyword)
+                    for start, end in start_end_indices:
+                        word_start_and_end = list(islice(text_line_object, start, end))
+                        """ There are some issues with strange fond types in some docs in which case None is returned """
+                        x0 = round(word_start_and_end[0].bbox[0], decimals)
+                        y0 = round(word_start_and_end[0].bbox[1], decimals)
+                        x1 = round(word_start_and_end[-1].bbox[2], decimals)
+                        y1 = round(word_start_and_end[-1].bbox[3], decimals)
+                        keyword_coordinates_in_text_line.add((x0, y0, x1, y1))
+                return keyword_coordinates_in_text_line if len(keyword_coordinates_in_text_line) > 0 else None
+            else:
+                return None
 
 
 def get_places_of_keyword_in_string(sentence: str, keyword: str, separator: str = ' ') -> list:

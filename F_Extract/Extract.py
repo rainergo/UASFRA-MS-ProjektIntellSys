@@ -2,7 +2,7 @@ import os
 import pandas as pd
 
 from A_Configuration_and_Logs.conf_and_log import ConfLog
-from D_Search.PDFMiner import PDFMiner
+from D_Search.PDFMinerNEW import PDFMiner
 # from D_Search.HelperFunctions import get_first_last_indices_of_keyword_in_string
 from E_Collect.Collect import get_values_and_page_numbers
 
@@ -55,7 +55,9 @@ def analyze_pdfs() -> pd.DataFrame:
         if filename.endswith(".pdf"):
             try:
                 miner = PDFMiner(path=filename)
-                table_keywords = miner.get_year_and_fy()
+                # table_keywords = miner.get_year_and_fy()
+                table_keywords = ['2020']
+                # print('table_keywords:', table_keywords)
                 search_result = miner.find_word(keywords_dict_of_list=conf_log.keyword_dict_of_lists,
                                                 search_word_list=conf_log.search_word_list,
                                                 table_keywords=table_keywords,
@@ -66,20 +68,21 @@ def analyze_pdfs() -> pd.DataFrame:
                                                 short_text_max_len=conf_log.find_word_short_text_max_len,
                                                 decimals=conf_log.find_word_decimals)
                 print('Search Results:\n', search_result)
-                table_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
-                                                                      keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
-                                                                      table_keywords=table_keywords,
-                                                                      search_result_dict_key_name='table_values')
-                text_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
-                                                                     keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
-                                                                     table_keywords=table_keywords,
-                                                                     search_result_dict_key_name='short_text_and_number')
-                number_and_pages_dict = aggregate_results(text_numbers_and_pages=text_numbers_and_pages,
-                                                          table_numbers_and_pages=table_numbers_and_pages)
-                result_dict = add_descriptive_data(number_and_pages_dict=number_and_pages_dict, year=table_keywords[0],
-                                                   name_of_pdf=str(pdf_doc.name))
-                df_aggregate = create_result_dataframe(result_dict=result_dict, result_dataframe=df_aggregate)
-                miner.stream.close()
+    #             table_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
+    #                                                                   keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
+    #                                                                   table_keywords=table_keywords,
+    #                                                                   search_result_dict_key_name='table_values')
+    #             text_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
+    #                                                                  keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
+    #                                                                  table_keywords=table_keywords,
+    #                                                                  search_result_dict_key_name='short_text_and_number')
+    #             number_and_pages_dict = aggregate_results(text_numbers_and_pages=text_numbers_and_pages,
+    #                                                       table_numbers_and_pages=table_numbers_and_pages)
+    #             result_dict = add_descriptive_data(number_and_pages_dict=number_and_pages_dict, year=table_keywords[0],
+    #                                                name_of_pdf=str(pdf_doc.name))
+    #             df_aggregate = create_result_dataframe(result_dict=result_dict, result_dataframe=df_aggregate)
+    #             miner.stream.close()
             except Exception as e:
                 conf_log.logging.error(e, exc_info=True)
-    return df_aggregate
+    #
+    # return df_aggregate
