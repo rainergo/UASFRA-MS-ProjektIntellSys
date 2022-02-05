@@ -191,12 +191,11 @@ class PDFMiner:
                     if isinstance(text_container, LTTextContainer) or isinstance(text_container, LTTextLine):
                         """ III.A. Get matching text of text container for word2vec analysis """
                         text_in_text_container = text_container.get_text()
-
+                        clean_text_in_text_container = ' '.join(text_in_text_container.split())
                         """ Find sentences that contain both, any one keyword AND any one search_word """
                         matching_sentences_in_text_container = \
-                            set([sentence for sentence in text_in_text_container.split('.')
+                            set([sentence for sentence in clean_text_in_text_container.split('.')
                                  for word in keywords_list and search_word_list if word in sentence])
-
                         ########################################
                         # print('matching_sentences_in_text_container:', matching_sentences_in_text_container)
                         #########################################
