@@ -22,14 +22,18 @@ class ConfLog:
         self.keyword_dict_of_lists = eval(self.config['D_Search']['keyword_dict_of_lists'])
         self.search_word_list = eval(self.config['D_Search']['search_word_list'])
         self.find_word_year_regex = eval(self.config['D_Search']['year_regex'])
-        self.find_word_neighbour_tolerance = float(self.config['D_Search']['neighbour_tolerance'])
+        self.find_word_neighbour_x_tolerance = float(self.config['D_Search']['neighbour_x_tolerance'])
+        self.find_word_neighbour_y_tolerance = float(self.config['D_Search']['neighbour_y_tolerance'])
         self.find_word_table_x_tolerance = float(self.config['D_Search']['table_x_tolerance'])
         self.find_word_table_y_tolerance = float(self.config['D_Search']['table_y_tolerance'])
         self.find_word_table_value_max_len = int(self.config['D_Search']['table_value_max_len'])
+        self.find_word_standard_year_if_year_not_found = self.config['D_Search']['standard_year_if_year_not_found']
         self.find_word_short_text_max_len = int(self.config['D_Search']['short_text_max_len'])
-        self.find_word_scope_value_minimum_characters_in_text = int(
-            self.config['D_Search']['scope_value_minimum_characters_in_text'])
+        self.find_word_min_num_int_digits_in_searched_value = int(
+            self.config['D_Search']['min_num_int_digits_in_searched_value'])
         self.find_word_decimals = int(self.config['D_Search']['decimals'])
+        self.extract_number_of_vals_shown_per_search_term = int(
+            self.config['F_Extract']['number_of_vals_shown_per_search_term'])
         self.pdfminer_layout_line_overlap = float(self.config['D_Search.PDFMiner.LayoutOptions']['line_overlap'])
         self.pdfminer_layout_char_margin = float(self.config['D_Search.PDFMiner.LayoutOptions']['char_margin'])
         self.pdfminer_layout_line_margin = float(self.config['D_Search.PDFMiner.LayoutOptions']['line_margin'])

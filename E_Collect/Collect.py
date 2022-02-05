@@ -15,9 +15,10 @@ def get_values_and_page_numbers(search_result_list: List[Dict], keyword_dict_of_
                     short_text_and_number_values.extend(value)
                     short_text_and_number_pages.append(page)
         results[key] = dict()
-        results[key]['values'] = extract_number_from_short_text_set(list_of_strings=short_text_and_number_values,
-                                                                    keyword_dict_of_lists=keyword_dict_of_lists,
-                                                                    table_keywords=table_keywords)
+        # results[key]['values'] = extract_number_from_short_text_set(list_of_strings=short_text_and_number_values,
+        #                                                             keyword_dict_of_lists=keyword_dict_of_lists,
+        #                                                             table_keywords=table_keywords)
+        results[key]['values'] = short_text_and_number_values
         results[key]['pages'] = short_text_and_number_pages
     return results
 

@@ -11,18 +11,18 @@ def get_most_common_values(values: list or set, num_of_return_values: int) -> li
     return sorted(values, key=values.count, reverse=True)[:num_of_return_values]
 
 
-def aggregate_results(text_numbers_and_pages: dict, table_numbers_and_pages: dict,
+def aggregate_results(neighbour_numbers_and_pages: dict, table_numbers_and_pages: dict,
                       num_of_return_values: int = 3) -> dict:
-    if text_numbers_and_pages.keys() != table_numbers_and_pages.keys():
-        raise KeyError('text_numbers_and_pages and table_numbers_and_pages have different keys !')
+    if neighbour_numbers_and_pages.keys() != table_numbers_and_pages.keys():
+        raise KeyError('neighbour_numbers_and_pages and table_numbers_and_pages have different keys !')
     all_pages = list()
     result_dict = dict()
-    for scope in text_numbers_and_pages.keys():
-        number_list = text_numbers_and_pages[scope]['values'] + table_numbers_and_pages[scope]['values']
+    for scope in neighbour_numbers_and_pages.keys():
+        number_list = neighbour_numbers_and_pages[scope]['values'] + table_numbers_and_pages[scope]['values']
         number_list_sorted_and_sized = get_most_common_values(values=number_list,
                                                               num_of_return_values=num_of_return_values)
         result_dict[scope] = number_list_sorted_and_sized
-        page_list = text_numbers_and_pages[scope]['pages'] + table_numbers_and_pages[scope]['pages']
+        page_list = neighbour_numbers_and_pages[scope]['pages'] + table_numbers_and_pages[scope]['pages']
         unique_page_list = list(set(page_list))
         all_pages.append(unique_page_list) if page_list is not None else None
     result_dict['AbsSeiten'] = all_pages
@@ -55,34 +55,36 @@ def analyze_pdfs() -> pd.DataFrame:
         if filename.endswith(".pdf"):
             try:
                 miner = PDFMiner(path=filename)
-                # table_keywords = miner.get_year_and_fy()
-                table_keywords = ['2020']
-                # print('table_keywords:', table_keywords)
+                table_keywords = miner.get_year_and_fy()
+                print('table_keywords:', table_keywords)
                 search_result = miner.find_word(keywords_dict_of_list=conf_log.keyword_dict_of_lists,
                                                 search_word_list=conf_log.search_word_list,
                                                 table_keywords=table_keywords,
-                                                neighbour_tolerance=conf_log.find_word_neighbour_tolerance,
+                                                neighbour_x_tolerance=conf_log.find_word_neighbour_x_tolerance,
+                                                neighbour_y_tolerance=conf_log.find_word_neighbour_y_tolerance,
                                                 table_x_tolerance=conf_log.find_word_table_x_tolerance,
                                                 table_y_tolerance=conf_log.find_word_table_y_tolerance,
                                                 table_value_max_len=conf_log.find_word_table_value_max_len,
                                                 short_text_max_len=conf_log.find_word_short_text_max_len,
                                                 decimals=conf_log.find_word_decimals)
                 print('Search Results:\n', search_result)
-    #             table_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
-    #                                                                   keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
-    #                                                                   table_keywords=table_keywords,
-    #                                                                   search_result_dict_key_name='table_values')
-    #             text_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
-    #                                                                  keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
-    #                                                                  table_keywords=table_keywords,
-    #                                                                  search_result_dict_key_name='short_text_and_number')
-    #             number_and_pages_dict = aggregate_results(text_numbers_and_pages=text_numbers_and_pages,
-    #                                                       table_numbers_and_pages=table_numbers_and_pages)
-    #             result_dict = add_descriptive_data(number_and_pages_dict=number_and_pages_dict, year=table_keywords[0],
-    #                                                name_of_pdf=str(pdf_doc.name))
-    #             df_aggregate = create_result_dataframe(result_dict=result_dict, result_dataframe=df_aggregate)
-    #             miner.stream.close()
+                table_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
+                                                                      keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
+                                                                      table_keywords=table_keywords,
+                                                                      search_result_dict_key_name='table_values')
+                # print('table_numbers_and_pages:', table_numbers_and_pages)
+                neighbour_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
+                                                                     keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
+                                                                     table_keywords=table_keywords,
+                                                                     search_result_dict_key_name='neighbour_values')
+                number_and_pages_dict = aggregate_results(neighbour_numbers_and_pages=neighbour_numbers_and_pages,
+                                                          table_numbers_and_pages=table_numbers_and_pages,
+                                                          num_of_return_values=conf_log.extract_number_of_vals_shown_per_search_term)
+                result_dict = add_descriptive_data(number_and_pages_dict=number_and_pages_dict, year=table_keywords[0],
+                                                   name_of_pdf=str(pdf_doc.name))
+
+                df_aggregate = create_result_dataframe(result_dict=result_dict, result_dataframe=df_aggregate)
+                miner.stream.close()
             except Exception as e:
                 conf_log.logging.error(e, exc_info=True)
-    #
-    # return df_aggregate
+    return df_aggregate
