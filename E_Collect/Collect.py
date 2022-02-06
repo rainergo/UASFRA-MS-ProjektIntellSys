@@ -1,25 +1,28 @@
 from typing import List, Dict
+from collections import Counter
+
+
+def get_most_common_values_2(values: list or set, num_of_return_values: int) -> list:
+    return [word for word, word_count in Counter(values).most_common(num_of_return_values)]
 
 
 def get_values_and_page_numbers(search_result_list: List[Dict], keyword_dict_of_lists: Dict[str, List[str]],
-                                table_keywords: list, search_result_dict_key_name: str):
+                                num_of_return_values: int, search_result_dict_key_name: str):
     results = dict()
     for key in keyword_dict_of_lists.keys():
-        short_text_and_number_values = list()
-        short_text_and_number_pages = list()
+        values = list()
+        pages = list()
         for dictionary in search_result_list:
             if key in dictionary:
                 value = dictionary[key][search_result_dict_key_name]
                 page = dictionary['page_number']
                 if len(value) > 0:
-                    short_text_and_number_values.extend(value)
-                    short_text_and_number_pages.append(page)
+                    values.extend(value)
+                    pages.append(page)
+        values = get_most_common_values_2(values=values, num_of_return_values=num_of_return_values)
         results[key] = dict()
-        # results[key]['values'] = extract_number_from_short_text_set(list_of_strings=short_text_and_number_values,
-        #                                                             keyword_dict_of_lists=keyword_dict_of_lists,
-        #                                                             table_keywords=table_keywords)
-        results[key]['values'] = short_text_and_number_values
-        results[key]['pages'] = short_text_and_number_pages
+        results[key]['values'] = values
+        results[key]['pages'] = pages
     return results
 
 

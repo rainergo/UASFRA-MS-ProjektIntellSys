@@ -32,8 +32,14 @@ class ConfLog:
         self.find_word_min_num_int_digits_in_searched_value = int(
             self.config['D_Search']['min_num_int_digits_in_searched_value'])
         self.find_word_decimals = int(self.config['D_Search']['decimals'])
-        self.extract_number_of_vals_shown_per_search_term = int(
-            self.config['F_Extract']['number_of_vals_shown_per_search_term'])
+        self.extract_number_of_vals_to_include = int(
+            self.config['F_Extract']['number_of_vals_to_include'])
+        self.extract_number_of_table_vals_to_include = int(
+            self.config['F_Extract']['number_of_table_vals_to_include'])
+        self.extract_number_of_text_vals_to_include = int(
+            self.config['F_Extract']['number_of_text_vals_to_include'])
+        self.extract_number_of_neighbour_vals_to_include = int(
+            self.config['F_Extract']['number_of_neighbour_vals_to_include'])
         self.pdfminer_layout_line_overlap = float(self.config['D_Search.PDFMiner.LayoutOptions']['line_overlap'])
         self.pdfminer_layout_char_margin = float(self.config['D_Search.PDFMiner.LayoutOptions']['char_margin'])
         self.pdfminer_layout_line_margin = float(self.config['D_Search.PDFMiner.LayoutOptions']['line_margin'])

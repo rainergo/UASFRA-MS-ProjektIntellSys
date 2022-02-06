@@ -41,7 +41,7 @@ class XYWordMatch:
         self.x_coordinates = (x0, x1)
         self.y_coordinates = (y0, y1)
         self.neighbour_values = list()
-        self.text_for_word2vec = list()
+        self.text_values = list()
         self.table_values = list()
 
     @property
@@ -76,8 +76,8 @@ class XYWordMatch:
     def add_neighbour_values(self, text: str):
         self.neighbour_values.append(text)
 
-    def add_text_for_word2vec(self, text: str):
-        self.text_for_word2vec.append(text)
+    def add_text_values(self, text: str):
+        self.text_values.append(text)
 
     def add_table_values(self, text: str):
         self.table_values.append(text)
@@ -194,13 +194,14 @@ class PDFMiner:
                         clean_text_in_text_container = ' '.join(text_in_text_container.split())
                         """ Find sentences that contain both, any one keyword AND any one search_word """
                         matching_sentences_in_text_container = \
-                            set([sentence for sentence in clean_text_in_text_container.split('.')
-                                 for word in keywords_list and search_word_list if word in sentence])
+                            get_sentences_if_they_contain_words_of_two_search_lists(text_string=clean_text_in_text_container,
+                                                                                  word_list_one=keywords_list,
+                                                                                  word_list_two=search_word_list)
                         ########################################
                         # print('matching_sentences_in_text_container:', matching_sentences_in_text_container)
                         #########################################
-
-                        set_of_matching_sentences_in_text_container.update(matching_sentences_in_text_container)
+                        for sentence in matching_sentences_in_text_container:
+                            set_of_matching_sentences_in_text_container.add(sentence)
 
                         """ III.B. Get XY-Coordinates of keywords and table headings (table_keywords) ... """
                         for text_line in text_container:
@@ -254,13 +255,17 @@ class PDFMiner:
                 """ Collect all data for each keyword_list """
                 if len(list_of_word_match_objects) > 0 or len(set_of_matching_sentences_in_text_container) > 0:
                     container_findings = dict()
-                    container_findings['text_for_word2vec'] = set()
+                    container_findings['text_values'] = set()
                     container_findings['neighbour_values'] = set()
                     container_findings['table_values'] = set()
                     if len(set_of_matching_sentences_in_text_container) > 0:
                         for sentence in set_of_matching_sentences_in_text_container:
-                            if sentence is not None:
-                                container_findings['text_for_word2vec'].add(sentence)
+                            ###################################
+                            numbers = self.text_filter(sentence=sentence)
+                            for number in numbers:
+                                if number is not None:
+                                    container_findings['text_values'].add(number)
+                            ##################################################################
                     for word_match_object in list_of_word_match_objects:
                         if len(word_match_object.neighbour_values) > 0:
                             for neighbour_value in word_match_object.neighbour_values:
@@ -279,14 +284,6 @@ class PDFMiner:
             if page_findings:
                 findings.append(page_findings)
         return findings
-
-    def get_coordinates(self, layout_obj, decimals: int = 1):
-        x0, y0, x1, y1, text_with_keyword = round(layout_obj.bbox[0], decimals), \
-                                            round(layout_obj.bbox[1], decimals), \
-                                            round(layout_obj.bbox[2], decimals), \
-                                            round(layout_obj.bbox[3], decimals), \
-                                            layout_obj.get_text()
-        return x0, y0, x1, y1, text_with_keyword
 
     def get_year_and_fy(self) -> list or None:
         standard_year = self.conf_log.find_word_standard_year_if_year_not_found
@@ -318,17 +315,9 @@ class PDFMiner:
                     start_end_indices = get_first_last_indices_of_keyword_in_string(sentence=text_in_line,
                                                                                     keyword=keyword)
                     for start, end in start_end_indices:
-                        word_start_and_end = list(islice(text_line_object, start, end))
-                        """ There are some issues with strange fond types in some docs in which case None is returned """
-                        if len(word_start_and_end) > 0 and isinstance(word_start_and_end[0], LTChar) and isinstance(
-                                word_start_and_end[-1], LTChar) and word_start_and_end is not None:
-                            x0 = round(word_start_and_end[0].bbox[0], decimals)
-                            y0 = round(word_start_and_end[0].bbox[1], decimals)
-                            x1 = round(word_start_and_end[-1].bbox[2], decimals)
-                            y1 = round(word_start_and_end[-1].bbox[3], decimals)
-                            word = ''
-                            for char in word_start_and_end:
-                                word += char.get_text()
+                        (x0, y0, x1, y1, word) = self.get_coordinates_and_word(text_line_object=text_line_object,
+                                                                               start=start, end=end, decimals=decimals)
+                        if all((x0, y0, x1, y1)):
                             keyword_coordinates_in_text_line.add((x0, y0, x1, y1))
                 return keyword_coordinates_in_text_line if len(keyword_coordinates_in_text_line) > 0 else None
             else:
@@ -338,25 +327,32 @@ class PDFMiner:
         if isinstance(text_line_object, LTTextLine) and text_line_object is not None:
             text_in_line = text_line_object.get_text()
             word_coordinates_in_text_line = set()
-            list_of_all_word_start_end_index_tuples_in_text_line = get_first_last_indices_of_all_words_in_string(
-                sentence=text_in_line)
-            for start, end in list_of_all_word_start_end_index_tuples_in_text_line:
-                word_start_and_end = list(islice(text_line_object, start, end))
-                """ There are some issues with strange fond types in some docs in which case None is returned """
-                # print('len(word_start_and_end):', len(word_start_and_end) > 0)
-                if len(word_start_and_end) > 0 and isinstance(word_start_and_end[0], LTChar) and isinstance(
-                        word_start_and_end[-1], LTChar) and word_start_and_end is not None:
-                    x0 = round(word_start_and_end[0].bbox[0], decimals)
-                    y0 = round(word_start_and_end[0].bbox[1], decimals)
-                    x1 = round(word_start_and_end[-1].bbox[2], decimals)
-                    y1 = round(word_start_and_end[-1].bbox[3], decimals)
-                    word = ''
-                    for char in word_start_and_end:
-                        word += char.get_text()
+            start_end_indices = get_first_last_indices_of_all_words_in_string(sentence=text_in_line)
+            for start, end in start_end_indices:
+                (x0, y0, x1, y1, word) = self.get_coordinates_and_word(text_line_object=text_line_object,
+                                                                       start=start, end=end, decimals=decimals)
+                if all((x0, y0, x1, y1, word)):
                     word_coordinates_in_text_line.add((x0, y0, x1, y1, word))
             return word_coordinates_in_text_line if len(word_coordinates_in_text_line) > 0 else None
         else:
             return None
+
+    def get_coordinates_and_word(self, text_line_object: LTTextLine, start: int, end: int,
+                                 decimals: int) -> tuple or None:
+        word_start_and_end = list(islice(text_line_object, start, end))
+        """ There are some issues with strange fond types in some pdf docs in which case None is returned """
+        if word_start_and_end is not None and len(word_start_and_end) > 0 \
+                and isinstance(word_start_and_end[0],LTChar) and isinstance(word_start_and_end[-1], LTChar):
+            x0 = round(word_start_and_end[0].bbox[0], decimals)
+            y0 = round(word_start_and_end[0].bbox[1], decimals)
+            x1 = round(word_start_and_end[-1].bbox[2], decimals)
+            y1 = round(word_start_and_end[-1].bbox[3], decimals)
+            word = ''
+            for char in word_start_and_end:
+                word += char.get_text()
+            return x0, y0, x1, y1, word
+        else:
+            return None, None, None, None, None
 
     def set_x_coordinates_of_table_keyword_values(self, set_of_table_keyword_coordinate_tuples: set,
                                                   list_of_word_match_objects: List[XYWordMatch],
@@ -416,6 +412,16 @@ class PDFMiner:
             return float(clean_value)
         else:
             return None
+
+    def text_filter(self, sentence: str, separator: str = ' ', thousands_separator: str = ',') -> List[float]:
+        numbers = list()
+        for word in sentence.split(separator):
+            word = word.replace(thousands_separator, '')
+            match = re.match(self.conf_log.find_word_year_regex, word)
+            if is_digit(word) and not match and not single_digit_num_is_point_zero(word) and \
+                    num_of_int_digits(word=word) >= self.conf_log.find_word_min_num_int_digits_in_searched_value:
+                numbers.append(float(word))
+        return numbers
 
     def get_table_values(self, text_line_object: LTTextLine, list_of_word_match_objects: List[XYWordMatch],
                          decimals: int) -> List[XYWordMatch]:
@@ -484,3 +490,8 @@ def num_of_int_digits(word: str or float) -> int:
 
 def single_digit_num_is_point_zero(number: str or float) -> bool:
     return (num_of_int_digits(number) == 1) and (float(number) % 1 == 0)
+
+
+def get_sentences_if_they_contain_words_of_two_search_lists(text_string: str, word_list_one: list, word_list_two: list) -> set:
+    return set([sentence for sentence in text_string.split('.') for word in word_list_one if word in sentence for word in word_list_two if word in sentence])
+

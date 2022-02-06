@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from collections import Counter
 
 from A_Configuration_and_Logs.conf_and_log import ConfLog
 from D_Search.PDFMinerNEW import PDFMiner
@@ -7,18 +8,23 @@ from D_Search.PDFMinerNEW import PDFMiner
 from E_Collect.Collect import get_values_and_page_numbers
 
 
-def get_most_common_values(values: list or set, num_of_return_values: int) -> list or set:
-    return sorted(values, key=values.count, reverse=True)[:num_of_return_values]
+# def get_most_common_values(values: list or set, num_of_return_values: int) -> list or set:
+#     return sorted(values, key=values.count, reverse=True)[:num_of_return_values]
 
 
-def aggregate_results(neighbour_numbers_and_pages: dict, table_numbers_and_pages: dict,
+def get_most_common_values(values: list or set, num_of_return_values: int) -> list:
+    return [word for word, word_count in Counter(values).most_common(num_of_return_values)]
+
+
+def aggregate_results(neighbour_numbers_and_pages: dict, table_numbers_and_pages: dict, text_numbers_and_pages: dict,
                       num_of_return_values: int = 3) -> dict:
-    if neighbour_numbers_and_pages.keys() != table_numbers_and_pages.keys():
+    if neighbour_numbers_and_pages.keys() != table_numbers_and_pages.keys() != text_numbers_and_pages.keys():
         raise KeyError('neighbour_numbers_and_pages and table_numbers_and_pages have different keys !')
     all_pages = list()
     result_dict = dict()
     for scope in neighbour_numbers_and_pages.keys():
-        number_list = neighbour_numbers_and_pages[scope]['values'] + table_numbers_and_pages[scope]['values']
+        number_list = neighbour_numbers_and_pages[scope]['values'] + table_numbers_and_pages[scope]['values'] + \
+                      text_numbers_and_pages[scope]['values']
         number_list_sorted_and_sized = get_most_common_values(values=number_list,
                                                               num_of_return_values=num_of_return_values)
         result_dict[scope] = number_list_sorted_and_sized
@@ -56,7 +62,7 @@ def analyze_pdfs() -> pd.DataFrame:
             try:
                 miner = PDFMiner(path=filename)
                 table_keywords = miner.get_year_and_fy()
-                print('table_keywords:', table_keywords)
+                # print('table_keywords:', table_keywords)
                 search_result = miner.find_word(keywords_dict_of_list=conf_log.keyword_dict_of_lists,
                                                 search_word_list=conf_log.search_word_list,
                                                 table_keywords=table_keywords,
@@ -67,19 +73,27 @@ def analyze_pdfs() -> pd.DataFrame:
                                                 table_value_max_len=conf_log.find_word_table_value_max_len,
                                                 short_text_max_len=conf_log.find_word_short_text_max_len,
                                                 decimals=conf_log.find_word_decimals)
-                print('Search Results:\n', search_result)
+                # print('Search Results:\n', search_result)
                 table_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
                                                                       keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
-                                                                      table_keywords=table_keywords,
+                                                                      num_of_return_values=conf_log.extract_number_of_table_vals_to_include,
                                                                       search_result_dict_key_name='table_values')
-                # print('table_numbers_and_pages:', table_numbers_and_pages)
+                print('table_numbers_and_pages:', table_numbers_and_pages)
                 neighbour_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
+                                                                          keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
+                                                                          num_of_return_values=conf_log.extract_number_of_neighbour_vals_to_include,
+                                                                          search_result_dict_key_name='neighbour_values')
+                print('neighbour_numbers_and_pages:', neighbour_numbers_and_pages)
+                text_numbers_and_pages = get_values_and_page_numbers(search_result_list=search_result,
                                                                      keyword_dict_of_lists=conf_log.keyword_dict_of_lists,
-                                                                     table_keywords=table_keywords,
-                                                                     search_result_dict_key_name='neighbour_values')
+                                                                     num_of_return_values=conf_log.extract_number_of_text_vals_to_include,
+                                                                     search_result_dict_key_name='text_values')
+                print('text_numbers_and_pages:', text_numbers_and_pages)
                 number_and_pages_dict = aggregate_results(neighbour_numbers_and_pages=neighbour_numbers_and_pages,
                                                           table_numbers_and_pages=table_numbers_and_pages,
-                                                          num_of_return_values=conf_log.extract_number_of_vals_shown_per_search_term)
+                                                          text_numbers_and_pages=text_numbers_and_pages,
+                                                          num_of_return_values=conf_log.extract_number_of_vals_to_include)
+
                 result_dict = add_descriptive_data(number_and_pages_dict=number_and_pages_dict, year=table_keywords[0],
                                                    name_of_pdf=str(pdf_doc.name))
 
