@@ -154,6 +154,7 @@ class PDFMiner:
         self.pages = PDFPage.get_pages(fp=self.stream, pagenos=None, maxpages=0, password='',
                                        caching=True, check_extractable=False)
         self.pages = extract_pages(pdf_file=path, laparams=self.layout_params)
+        self.matching_sentences = set()
 
     def process_pages(self):
         page_number = 0
@@ -172,7 +173,7 @@ class PDFMiner:
     def find_word(self, keywords_dict_of_list: Dict[str, List[str]], search_word_list: List[str],
                   neighbour_x_tolerance: float, neighbour_y_tolerance: float,
                   table_keywords: List[str], table_x_tolerance: float = 3.50, table_y_tolerance: float = 0.25,
-                  table_value_max_len: int = 12, short_text_max_len: int = 50, decimals: int = 1):
+                  decimals: int = 1):
         if not self.doc_is_extractable:
             raise PDFTextExtractionNotAllowed('The pdf document does not allow extraction ! ')
         findings = list()
@@ -260,6 +261,8 @@ class PDFMiner:
                     container_findings['table_values'] = set()
                     if len(set_of_matching_sentences_in_text_container) > 0:
                         for sentence in set_of_matching_sentences_in_text_container:
+                            ##################
+                            self.matching_sentences.add(sentence)
                             ###################################
                             numbers = self.text_filter(sentence=sentence)
                             for number in numbers:

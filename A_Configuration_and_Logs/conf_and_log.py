@@ -26,12 +26,11 @@ class ConfLog:
         self.find_word_neighbour_y_tolerance = float(self.config['D_Search']['neighbour_y_tolerance'])
         self.find_word_table_x_tolerance = float(self.config['D_Search']['table_x_tolerance'])
         self.find_word_table_y_tolerance = float(self.config['D_Search']['table_y_tolerance'])
-        self.find_word_table_value_max_len = int(self.config['D_Search']['table_value_max_len'])
         self.find_word_standard_year_if_year_not_found = self.config['D_Search']['standard_year_if_year_not_found']
-        self.find_word_short_text_max_len = int(self.config['D_Search']['short_text_max_len'])
         self.find_word_min_num_int_digits_in_searched_value = int(
             self.config['D_Search']['min_num_int_digits_in_searched_value'])
         self.find_word_decimals = int(self.config['D_Search']['decimals'])
+        self.find_word_unit_list = eval(self.config['D_Search']['unit_list'])
         self.extract_number_of_vals_to_include = int(
             self.config['F_Extract']['number_of_vals_to_include'])
         self.extract_number_of_table_vals_to_include = int(
