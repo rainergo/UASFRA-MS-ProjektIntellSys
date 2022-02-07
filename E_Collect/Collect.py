@@ -32,9 +32,6 @@ def extract_number_from_short_text_set(list_of_strings: list, keyword_dict_of_li
     keywords = [keyword for keyword_list in keyword_dict_of_lists.values() for keyword in keyword_list]
     keywords.extend(table_keywords)
     keywords_sorted = sorted(keywords, key=len, reverse=True)
-    # numbers_in_sentence = [word.replace(',', '').replace('.', '') for word in text.split() if
-    #                        word not in keywords_sorted and word.replace(',', '').replace('.', '').isdigit() and
-    #                        len(word) > 1]
     numbers_in_sentence = [word for word in text.split() if
                            word not in keywords_sorted and word.replace(',', '').replace('.', '').isdigit() and
                            len(word) > 1]

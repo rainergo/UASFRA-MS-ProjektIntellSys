@@ -6,7 +6,7 @@ from operator import itemgetter
 from typing import Set, List, Tuple
 
 from A_Configuration_and_Logs.conf_and_log import ConfLog
-from D_Search.PDFMinerNEW import PDFMiner
+from D_Search.PDFMiner import PDFMiner
 # from D_Search.HelperFunctions import get_first_last_indices_of_keyword_in_string
 from E_Collect.Collect import get_values_and_page_numbers
 
@@ -112,7 +112,7 @@ def analyze_pdfs() -> pd.DataFrame:
                                                 table_x_tolerance=conf_log.find_word_table_x_tolerance,
                                                 table_y_tolerance=conf_log.find_word_table_y_tolerance,
                                                 decimals=conf_log.find_word_decimals)
-                # print('Search Results:\n', search_result)
+                print('Search Results:\n', search_result)
                 """ The matching sentences (for potential word2vec) are stored in miner.matching_sentences """
                 # print('miner.matching_sentences:', miner.matching_sentences)
                 most_likely_unit = get_most_likely_unit(set_of_strings=miner.matching_sentences, unit_list=conf_log.find_word_unit_list)

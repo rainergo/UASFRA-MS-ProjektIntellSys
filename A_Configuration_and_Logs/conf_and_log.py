@@ -3,7 +3,7 @@ import logging
 
 
 class ConfLog:
-    # Provide full absolute path to config.ini file:
+    """ Provide full absolute path to config.ini file: """
     config_ini_path = 'D:/A_STUDIUM/PYTHON/UASFRA-MS-ProjektIntellSys/A_Configuration_and_Logs/config.ini'
 
     def __init__(self):
